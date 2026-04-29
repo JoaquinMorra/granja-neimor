@@ -64,6 +64,8 @@ export type Venta = {
 
 export type TipoCaja = 'INGRESO' | 'EGRESO'
 
+export type MedioPagoCaja = 'EFECTIVO' | 'TRANSFERENCIA'
+
 export type Caja = {
   id: string
   fecha: string
@@ -71,6 +73,7 @@ export type Caja = {
   categoria: string
   descripcion: string | null
   monto: number
+  medio_pago: MedioPagoCaja
   created_at: string
 }
 

@@ -15,7 +15,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts'
-import { Plus, X, TrendingUp, TrendingDown, Wallet } from 'lucide-react'
+import { Plus, X, TrendingUp, TrendingDown, Wallet, ArrowLeftRight } from 'lucide-react'
 import { format } from 'date-fns'
 
 type Props = {
@@ -30,6 +30,7 @@ function NuevoMovimientoModal({ onClose }: { onClose: () => void }) {
   const [form, setForm] = useState({
     fecha: hoyISO(),
     tipo: 'INGRESO' as 'INGRESO' | 'EGRESO',
+    medio_pago: 'EFECTIVO' as 'EFECTIVO' | 'TRANSFERENCIA',
     categoria: '',
     descripcion: '',
     monto: '',
@@ -52,6 +53,7 @@ function NuevoMovimientoModal({ onClose }: { onClose: () => void }) {
     const { error: err } = await supabase.from('caja').insert({
       fecha: form.fecha,
       tipo: form.tipo,
+      medio_pago: form.medio_pago,
       categoria: form.categoria,
       descripcion: form.descripcion || null,
       monto: parseFloat(form.monto),
@@ -99,6 +101,30 @@ function NuevoMovimientoModal({ onClose }: { onClose: () => void }) {
                   EGRESO
                 </button>
               </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Medio de pago</label>
+            <div className="flex gap-2">
+              <button type="button"
+                onClick={() => setForm((p) => ({ ...p, medio_pago: 'EFECTIVO' }))}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                  form.medio_pago === 'EFECTIVO'
+                    ? 'bg-slate-700 text-white border-slate-700'
+                    : 'bg-white text-slate-700 border-slate-300 hover:border-slate-500'
+                }`}>
+                Efectivo
+              </button>
+              <button type="button"
+                onClick={() => setForm((p) => ({ ...p, medio_pago: 'TRANSFERENCIA' }))}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                  form.medio_pago === 'TRANSFERENCIA'
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-slate-700 border-slate-300 hover:border-blue-400'
+                }`}>
+                Transferencia
+              </button>
             </div>
           </div>
 
@@ -153,6 +179,14 @@ export default function CajaClient({ movimientos, resumenMensual }: Props) {
     .filter((m) => m.tipo === 'EGRESO')
     .reduce((s, m) => s + m.monto, 0)
   const saldoMes = totalIngresos - totalEgresos
+
+  const ingresosTransf = movimientos
+    .filter((m) => m.tipo === 'INGRESO' && m.medio_pago === 'TRANSFERENCIA')
+    .reduce((s, m) => s + m.monto, 0)
+  const egresosTransf = movimientos
+    .filter((m) => m.tipo === 'EGRESO' && m.medio_pago === 'TRANSFERENCIA')
+    .reduce((s, m) => s + m.monto, 0)
+  const saldoTransf = ingresosTransf - egresosTransf
 
   // Resumen por categoría
   const egresosPorCategoria = useMemo(() => {
@@ -210,29 +244,58 @@ export default function CajaClient({ movimientos, resumenMensual }: Props) {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="card p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <TrendingUp size={16} className="text-green-500" />
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Ingresos del mes</p>
+      <div className="space-y-3">
+        <div className="grid grid-cols-3 gap-4">
+          <div className="card p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <TrendingUp size={16} className="text-green-500" />
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Ingresos del mes</p>
+            </div>
+            <p className="text-2xl font-bold text-green-800">{formatearPeso(totalIngresos)}</p>
           </div>
-          <p className="text-2xl font-bold text-green-800">{formatearPeso(totalIngresos)}</p>
+          <div className="card p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <TrendingDown size={16} className="text-red-500" />
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Egresos del mes</p>
+            </div>
+            <p className="text-2xl font-bold text-red-800">{formatearPeso(totalEgresos)}</p>
+          </div>
+          <div className="card p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <Wallet size={16} className="text-blue-500" />
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Saldo del mes</p>
+            </div>
+            <p className={`text-2xl font-bold ${saldoMes >= 0 ? 'text-green-800' : 'text-red-800'}`}>
+              {formatearPeso(saldoMes)}
+            </p>
+          </div>
         </div>
-        <div className="card p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <TrendingDown size={16} className="text-red-500" />
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Egresos del mes</p>
+
+        {/* KPIs transferencias */}
+        <div className="grid grid-cols-3 gap-4">
+          <div className="card p-4 border-l-4 border-l-blue-400">
+            <div className="flex items-center gap-2 mb-1">
+              <ArrowLeftRight size={16} className="text-blue-500" />
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Ingresos — Transf.</p>
+            </div>
+            <p className="text-xl font-bold text-green-700">{formatearPeso(ingresosTransf)}</p>
           </div>
-          <p className="text-2xl font-bold text-red-800">{formatearPeso(totalEgresos)}</p>
-        </div>
-        <div className="card p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <Wallet size={16} className="text-blue-500" />
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Saldo del mes</p>
+          <div className="card p-4 border-l-4 border-l-blue-400">
+            <div className="flex items-center gap-2 mb-1">
+              <ArrowLeftRight size={16} className="text-blue-500" />
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Egresos — Transf.</p>
+            </div>
+            <p className="text-xl font-bold text-red-700">{formatearPeso(egresosTransf)}</p>
           </div>
-          <p className={`text-2xl font-bold ${saldoMes >= 0 ? 'text-green-800' : 'text-red-800'}`}>
-            {formatearPeso(saldoMes)}
-          </p>
+          <div className="card p-4 border-l-4 border-l-blue-400">
+            <div className="flex items-center gap-2 mb-1">
+              <ArrowLeftRight size={16} className="text-blue-500" />
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Saldo — Transf.</p>
+            </div>
+            <p className={`text-xl font-bold ${saldoTransf >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+              {formatearPeso(saldoTransf)}
+            </p>
+          </div>
         </div>
       </div>
 
@@ -307,6 +370,7 @@ export default function CajaClient({ movimientos, resumenMensual }: Props) {
               <tr className="border-b border-slate-100 bg-slate-50">
                 <th className="table-th">Fecha</th>
                 <th className="table-th">Tipo</th>
+                <th className="table-th">Medio</th>
                 <th className="table-th">Categoría</th>
                 <th className="table-th">Descripción</th>
                 <th className="table-th text-right">Monto</th>
@@ -315,7 +379,7 @@ export default function CajaClient({ movimientos, resumenMensual }: Props) {
             <tbody className="divide-y divide-slate-50">
               {movimientosFiltrados.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="table-td text-center text-slate-400 py-8">
+                  <td colSpan={6} className="table-td text-center text-slate-400 py-8">
                     Sin movimientos
                   </td>
                 </tr>
@@ -332,6 +396,17 @@ export default function CajaClient({ movimientos, resumenMensual }: Props) {
                         }`}
                       >
                         {m.tipo}
+                      </span>
+                    </td>
+                    <td className="table-td">
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                          m.medio_pago === 'TRANSFERENCIA'
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-slate-100 text-slate-700'
+                        }`}
+                      >
+                        {m.medio_pago === 'TRANSFERENCIA' ? 'Transf.' : 'Efectivo'}
                       </span>
                     </td>
                     <td className="table-td">{m.categoria}</td>
