@@ -180,6 +180,14 @@ export default function CajaClient({ movimientos, resumenMensual }: Props) {
     .reduce((s, m) => s + m.monto, 0)
   const saldoMes = totalIngresos - totalEgresos
 
+  const ingresosEfectivo = movimientos
+    .filter((m) => m.tipo === 'INGRESO' && m.medio_pago === 'EFECTIVO')
+    .reduce((s, m) => s + m.monto, 0)
+  const egresosEfectivo = movimientos
+    .filter((m) => m.tipo === 'EGRESO' && m.medio_pago === 'EFECTIVO')
+    .reduce((s, m) => s + m.monto, 0)
+  const saldoEfectivo = ingresosEfectivo - egresosEfectivo
+
   const ingresosTransf = movimientos
     .filter((m) => m.tipo === 'INGRESO' && m.medio_pago === 'TRANSFERENCIA')
     .reduce((s, m) => s + m.monto, 0)
@@ -267,6 +275,33 @@ export default function CajaClient({ movimientos, resumenMensual }: Props) {
             </div>
             <p className={`text-2xl font-bold ${saldoMes >= 0 ? 'text-green-800' : 'text-red-800'}`}>
               {formatearPeso(saldoMes)}
+            </p>
+          </div>
+        </div>
+
+        {/* KPIs efectivo */}
+        <div className="grid grid-cols-3 gap-4">
+          <div className="card p-4 border-l-4 border-l-slate-400">
+            <div className="flex items-center gap-2 mb-1">
+              <Wallet size={16} className="text-slate-500" />
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Ingresos — Efectivo</p>
+            </div>
+            <p className="text-xl font-bold text-green-700">{formatearPeso(ingresosEfectivo)}</p>
+          </div>
+          <div className="card p-4 border-l-4 border-l-slate-400">
+            <div className="flex items-center gap-2 mb-1">
+              <Wallet size={16} className="text-slate-500" />
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Egresos — Efectivo</p>
+            </div>
+            <p className="text-xl font-bold text-red-700">{formatearPeso(egresosEfectivo)}</p>
+          </div>
+          <div className="card p-4 border-l-4 border-l-slate-400">
+            <div className="flex items-center gap-2 mb-1">
+              <Wallet size={16} className="text-slate-500" />
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Saldo — Efectivo</p>
+            </div>
+            <p className={`text-xl font-bold ${saldoEfectivo >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+              {formatearPeso(saldoEfectivo)}
             </p>
           </div>
         </div>
