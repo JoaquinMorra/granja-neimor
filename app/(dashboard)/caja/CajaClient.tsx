@@ -18,9 +18,13 @@ import {
 import { Plus, X, TrendingUp, TrendingDown, Wallet, ArrowLeftRight } from 'lucide-react'
 import { format } from 'date-fns'
 
+type Periodo = { inicio: string; fin: string; label: string }
+
 type Props = {
   movimientos: Caja[]
   resumenMensual: { fecha: string; tipo: string; monto: number }[]
+  periodoLabel: string
+  periodos: Periodo[]
 }
 
 function NuevoMovimientoModal({ onClose }: { onClose: () => void }) {
@@ -168,7 +172,7 @@ function NuevoMovimientoModal({ onClose }: { onClose: () => void }) {
   )
 }
 
-export default function CajaClient({ movimientos, resumenMensual }: Props) {
+export default function CajaClient({ movimientos, resumenMensual, periodoLabel, periodos }: Props) {
   const [modalOpen, setModalOpen] = useState(false)
   const [filtroTipo, setFiltroTipo] = useState('todos')
 
@@ -209,27 +213,18 @@ export default function CajaClient({ movimientos, resumenMensual }: Props) {
       .map(([categoria, monto]) => ({ categoria, monto }))
   }, [movimientos])
 
-  // Gráfico mensual
+  // Gráfico por período (6 al 5)
   const graficoMensual = useMemo(() => {
-    const meses: { mes: string; ingresos: number; egresos: number }[] = []
-    const mesMap = new Map<string, { ingresos: number; egresos: number }>()
-
-    resumenMensual.forEach((m) => {
-      const key = m.fecha.substring(0, 7)
-      const prev = mesMap.get(key) ?? { ingresos: 0, egresos: 0 }
-      if (m.tipo === 'INGRESO') prev.ingresos += m.monto
-      else prev.egresos += m.monto
-      mesMap.set(key, prev)
+    return periodos.map(({ inicio, fin, label }) => {
+      const ingresos = resumenMensual
+        .filter((m) => m.tipo === 'INGRESO' && m.fecha >= inicio && m.fecha <= fin)
+        .reduce((s, m) => s + m.monto, 0)
+      const egresos = resumenMensual
+        .filter((m) => m.tipo === 'EGRESO' && m.fecha >= inicio && m.fecha <= fin)
+        .reduce((s, m) => s + m.monto, 0)
+      return { mes: label, ingresos, egresos }
     })
-
-    mesMap.forEach((val, key) => {
-      const [year, month] = key.split('-')
-      const label = new Date(parseInt(year), parseInt(month) - 1).toLocaleDateString('es-AR', { month: 'short' })
-      meses.push({ mes: label, ...val })
-    })
-
-    return meses
-  }, [resumenMensual])
+  }, [resumenMensual, periodos])
 
   const movimientosFiltrados = movimientos.filter((m) => {
     if (filtroTipo !== 'todos' && m.tipo !== filtroTipo) return false
@@ -242,7 +237,7 @@ export default function CajaClient({ movimientos, resumenMensual }: Props) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Caja</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Ingresos y egresos del mes</p>
+          <p className="text-sm text-slate-500 mt-0.5">Período {periodoLabel}</p>
         </div>
         <button onClick={() => setModalOpen(true)} className="btn-primary flex items-center gap-2">
           <Plus size={18} />

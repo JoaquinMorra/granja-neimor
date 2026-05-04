@@ -101,3 +101,38 @@ export const CATEGORIAS_EGRESO = [
 ]
 
 export const PUNTO_EQUILIBRIO_CAJONES = 66
+
+// El período contable de la granja va del 6 de un mes al 5 del siguiente.
+function toISO(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+export function getPeriodoActual(): { inicio: string; fin: string; label: string } {
+  const hoy = new Date()
+  const dia = hoy.getDate()
+
+  const inicioDate = dia <= 5
+    ? new Date(hoy.getFullYear(), hoy.getMonth() - 1, 6)
+    : new Date(hoy.getFullYear(), hoy.getMonth(), 6)
+  const finDate = new Date(inicioDate.getFullYear(), inicioDate.getMonth() + 1, 5)
+
+  const fmt: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' }
+  const label = `${inicioDate.toLocaleDateString('es-AR', fmt)} – ${finDate.toLocaleDateString('es-AR', fmt)}`
+
+  return { inicio: toISO(inicioDate), fin: toISO(finDate), label }
+}
+
+export function getUltimosPeriodos(n: number): { inicio: string; fin: string; label: string }[] {
+  const hoy = new Date()
+  const dia = hoy.getDate()
+  const periodoActualInicio = dia <= 5
+    ? new Date(hoy.getFullYear(), hoy.getMonth() - 1, 6)
+    : new Date(hoy.getFullYear(), hoy.getMonth(), 6)
+
+  return Array.from({ length: n }, (_, i) => {
+    const inicio = new Date(periodoActualInicio.getFullYear(), periodoActualInicio.getMonth() - (n - 1 - i), 6)
+    const fin = new Date(inicio.getFullYear(), inicio.getMonth() + 1, 5)
+    const label = inicio.toLocaleDateString('es-AR', { month: 'short' })
+    return { inicio: toISO(inicio), fin: toISO(fin), label }
+  })
+}

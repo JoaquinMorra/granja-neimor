@@ -1,13 +1,12 @@
 import { createClient } from '@/lib/supabase/server'
 import CajaClient from './CajaClient'
-import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns'
+import { getPeriodoActual, getUltimosPeriodos } from '@/lib/utils'
 
 export default async function CajaPage() {
   const supabase = await createClient()
-  const hoy = new Date()
-  const mesInicio = format(startOfMonth(hoy), 'yyyy-MM-dd')
-  const mesFin = format(endOfMonth(hoy), 'yyyy-MM-dd')
-  const seiseMesesAtras = format(startOfMonth(subMonths(hoy, 5)), 'yyyy-MM-dd')
+  const { inicio: mesInicio, fin: mesFin, label: periodoLabel } = getPeriodoActual()
+  const periodos = getUltimosPeriodos(6)
+  const inicioHistorico = periodos[0].inicio
 
   const [{ data: movimientos }, { data: resumenMensual }] = await Promise.all([
     supabase
@@ -20,7 +19,7 @@ export default async function CajaPage() {
     supabase
       .from('caja')
       .select('fecha, tipo, monto')
-      .gte('fecha', seiseMesesAtras)
+      .gte('fecha', inicioHistorico)
       .order('fecha'),
   ])
 
@@ -28,6 +27,8 @@ export default async function CajaPage() {
     <CajaClient
       movimientos={movimientos ?? []}
       resumenMensual={resumenMensual ?? []}
+      periodoLabel={periodoLabel}
+      periodos={periodos}
     />
   )
 }
