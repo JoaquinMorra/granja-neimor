@@ -7,7 +7,7 @@ export default async function ProduccionPage() {
 
   const [{ data: galpones }, { data: lotes }, { data: produccionReciente }] = await Promise.all([
     supabase.from('galpones').select('*').order('orden'),
-    supabase.from('gallinas_actuales').select('*, galpon:galpones(*)'),
+    supabase.from('gallinas_actuales').select('*, galpon:galpones(*)').order('nombre'),
     supabase
       .from('produccion_diaria')
       .select('*, lote:lotes(nombre, galpon:galpones(nombre, tipo))')
