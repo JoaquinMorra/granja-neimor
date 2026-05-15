@@ -26,10 +26,9 @@ export default async function VentasPage({
     supabase
       .from('ventas')
       .select('*')
-      .gte('fecha', periodoInicio)
-      .lte('fecha', periodoFin)
       .order('fecha', { ascending: false })
-      .order('created_at', { ascending: false }),
+      .order('created_at', { ascending: false })
+      .limit(500),
     supabase
       .from('ventas')
       .select('cliente, equivalente_huevos, estado, monto_cobrado, monto_debe')
