@@ -1,25 +1,40 @@
 import { createClient } from '@/lib/supabase/server'
 import VentasClient from './VentasClient'
-import { format, startOfMonth, endOfMonth } from 'date-fns'
+import { getPeriodoActual, getUltimosPeriodos } from '@/lib/utils'
 
-export default async function VentasPage() {
+export default async function VentasPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ periodo?: string }>
+}) {
   const supabase = await createClient()
-  const hoy = new Date()
-  const mesInicio = format(startOfMonth(hoy), 'yyyy-MM-dd')
-  const mesFin = format(endOfMonth(hoy), 'yyyy-MM-dd')
+  const { periodo: periodoParam } = await searchParams
+  const periodos = getUltimosPeriodos(6)
+  const periodoActual = getPeriodoActual()
 
-  const [{ data: ventas }, { data: ventasMes }, { data: clientes }] = await Promise.all([
+  const periodoEncontrado = periodoParam
+    ? periodos.find((p) => p.inicio === periodoParam)
+    : undefined
+
+  const periodoInicio = periodoEncontrado?.inicio ?? periodoActual.inicio
+  const periodoFin = periodoEncontrado?.fin ?? periodoActual.fin
+
+  const fmt: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' }
+  const periodoLabel = `${new Date(periodoInicio + 'T12:00:00').toLocaleDateString('es-AR', fmt)} – ${new Date(periodoFin + 'T12:00:00').toLocaleDateString('es-AR', fmt)}`
+
+  const [{ data: ventas }, { data: ventasPeriodo }, { data: clientes }] = await Promise.all([
     supabase
       .from('ventas')
       .select('*')
+      .gte('fecha', periodoInicio)
+      .lte('fecha', periodoFin)
       .order('fecha', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(200),
+      .order('created_at', { ascending: false }),
     supabase
       .from('ventas')
       .select('cliente, equivalente_huevos, estado, monto_cobrado, monto_debe')
-      .gte('fecha', mesInicio)
-      .lte('fecha', mesFin),
+      .gte('fecha', periodoInicio)
+      .lte('fecha', periodoFin),
     supabase
       .from('ventas')
       .select('cliente')
@@ -31,8 +46,11 @@ export default async function VentasPage() {
   return (
     <VentasClient
       ventas={ventas ?? []}
-      ventasMes={ventasMes ?? []}
+      ventasPeriodo={ventasPeriodo ?? []}
       clientesExistentes={clientesUnicos}
+      periodoLabel={periodoLabel}
+      periodoInicio={periodoInicio}
+      periodos={periodos}
     />
   )
 }

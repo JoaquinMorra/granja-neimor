@@ -20,6 +20,7 @@ import {
   formatearPeso,
   huevosACajones,
   PUNTO_EQUILIBRIO_CAJONES,
+  getUltimosPeriodos,
 } from '@/lib/utils'
 import { format, subDays, startOfMonth, endOfMonth } from 'date-fns'
 
@@ -32,6 +33,9 @@ async function getDashboardData() {
 
   // Semana actual (últimos 7 días)
   const semanaInicio = format(subDays(hoy, 6), 'yyyy-MM-dd')
+
+  // Últimos 6 períodos contables (6 al 5) para el gráfico de ventas
+  const periodosVentas = getUltimosPeriodos(6)
 
   const [
     { data: galpones },
@@ -57,7 +61,7 @@ async function getDashboardData() {
     supabase
       .from('ventas')
       .select('fecha, equivalente_huevos')
-      .gte('fecha', format(subDays(hoy, 150), 'yyyy-MM-dd'))
+      .gte('fecha', periodosVentas[0].inicio)
       .order('fecha'),
   ])
 
@@ -130,17 +134,13 @@ async function getDashboardData() {
     return { fecha, coloradas, blancas }
   })
 
-  // Ventas mensuales últimos 6 meses (en cajones)
-  const mesesVentas: { mes: string; cajones: number }[] = []
-  for (let i = 5; i >= 0; i--) {
-    const fecha = subDays(startOfMonth(hoy), i * 30)
-    const key = format(fecha, 'yyyy-MM')
-    const label = format(fecha, 'MMM', { locale: undefined })
+  // Ventas últimos 6 períodos contables (6 al 5), en cajones
+  const mesesVentas = periodosVentas.map(({ inicio, fin, label }) => {
     const cajones = (ventasMensuales ?? [])
-      .filter((v) => v.fecha.startsWith(key))
+      .filter((v) => v.fecha >= inicio && v.fecha <= fin)
       .reduce((s, v) => s + (v.equivalente_huevos ?? 0) / 360, 0)
-    mesesVentas.push({ mes: label, cajones: Math.round(cajones * 10) / 10 })
-  }
+    return { mes: label, cajones: Math.round(cajones * 10) / 10 }
+  })
 
   const alertasCount = posturaGalpones.filter((p) => p.alerta).length
 

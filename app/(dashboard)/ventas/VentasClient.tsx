@@ -12,10 +12,15 @@ import {
 } from '@/lib/utils'
 import { Plus, CheckCircle, Edit, Trash2 } from 'lucide-react'
 
+type Periodo = { inicio: string; fin: string; label: string }
+
 type Props = {
   ventas: Venta[]
-  ventasMes: { cliente: string; equivalente_huevos: number; estado: string; monto_cobrado: number; monto_debe: number }[]
+  ventasPeriodo: { cliente: string; equivalente_huevos: number; estado: string; monto_cobrado: number; monto_debe: number }[]
   clientesExistentes: string[]
+  periodoLabel: string
+  periodoInicio: string
+  periodos: Periodo[]
 }
 
 function EstadoBadge({ estado }: { estado: string }) {
@@ -24,7 +29,7 @@ function EstadoBadge({ estado }: { estado: string }) {
   return <span className="badge-parcial">PARCIAL</span>
 }
 
-export default function VentasClient({ ventas, ventasMes, clientesExistentes }: Props) {
+export default function VentasClient({ ventas, ventasPeriodo, clientesExistentes, periodoLabel, periodoInicio, periodos }: Props) {
   const router = useRouter()
   const [modalOpen, setModalOpen] = useState(false)
   const [ventaEditar, setVentaEditar] = useState<Venta | undefined>()
@@ -37,9 +42,9 @@ export default function VentasClient({ ventas, ventasMes, clientesExistentes }: 
   const [pagoModal, setPagoModal] = useState<Venta | null>(null)
   const [montoPago, setMontoPago] = useState('')
 
-  const cajonesVendidosMes = ventasMes.reduce((s, v) => s + v.equivalente_huevos / 360, 0)
-  const deudaTotalMes = ventasMes.reduce((s, v) => s + (v.monto_debe ?? 0), 0)
-  const ingresadoMes = ventasMes.reduce((s, v) => s + (v.monto_cobrado ?? 0), 0)
+  const cajonesVendidosPeriodo = ventasPeriodo.reduce((s, v) => s + v.equivalente_huevos / 360, 0)
+  const deudaTotalPeriodo = ventasPeriodo.reduce((s, v) => s + (v.monto_debe ?? 0), 0)
+  const ingresadoPeriodo = ventasPeriodo.reduce((s, v) => s + (v.monto_cobrado ?? 0), 0)
 
   // Deudas por cliente
   const deudasPorCliente = useMemo(() => {
@@ -104,9 +109,17 @@ export default function VentasClient({ ventas, ventasMes, clientesExistentes }: 
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
+        <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold text-slate-900">Ventas</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Gestión de ventas y cobranzas</p>
+          <select
+            value={periodoInicio}
+            onChange={(e) => router.push(`/ventas?periodo=${e.target.value}`)}
+            className="input w-auto text-sm"
+          >
+            {[...periodos].reverse().map((p) => (
+              <option key={p.inicio} value={p.inicio}>{p.label}</option>
+            ))}
+          </select>
         </div>
         <button onClick={() => { setVentaEditar(undefined); setModalOpen(true) }} className="btn-primary flex items-center gap-2">
           <Plus size={18} />
@@ -115,37 +128,38 @@ export default function VentasClient({ ventas, ventasMes, clientesExistentes }: 
         </button>
       </div>
 
-      {/* KPIs del mes */}
+      {/* KPIs del período */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="card p-4">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Cajones vendidos (mes)</p>
-          <p className="text-2xl font-bold text-blue-900 mt-1">{cajonesVendidosMes.toFixed(1)}</p>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Cajones vendidos (período)</p>
+          <p className="text-2xl font-bold text-blue-900 mt-1">{cajonesVendidosPeriodo.toFixed(1)}</p>
           <p className="text-xs text-slate-500 mt-1">Punto de equilibrio: {PUNTO_EQUILIBRIO_CAJONES}/sem</p>
           <div className="mt-2 h-1.5 bg-slate-100 rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full ${
-                cajonesVendidosMes >= PUNTO_EQUILIBRIO_CAJONES * 4
+                cajonesVendidosPeriodo >= PUNTO_EQUILIBRIO_CAJONES * 4
                   ? 'bg-green-500'
-                  : cajonesVendidosMes >= PUNTO_EQUILIBRIO_CAJONES * 3
+                  : cajonesVendidosPeriodo >= PUNTO_EQUILIBRIO_CAJONES * 3
                   ? 'bg-amber-400'
                   : 'bg-red-400'
               }`}
-              style={{ width: `${Math.min((cajonesVendidosMes / (PUNTO_EQUILIBRIO_CAJONES * 4)) * 100, 100)}%` }}
+              style={{ width: `${Math.min((cajonesVendidosPeriodo / (PUNTO_EQUILIBRIO_CAJONES * 4)) * 100, 100)}%` }}
             />
           </div>
         </div>
         <div className="card p-4">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Ingresado (mes)</p>
-          <p className="text-2xl font-bold text-green-800 mt-1">{formatearPeso(ingresadoMes)}</p>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Ingresado (período)</p>
+          <p className="text-2xl font-bold text-green-800 mt-1">{formatearPeso(ingresadoPeriodo)}</p>
         </div>
         <div className="card p-4">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Deuda pendiente total</p>
-          <p className="text-2xl font-bold text-red-800 mt-1">{formatearPeso(deudaTotalMes)}</p>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Deuda pendiente (período)</p>
+          <p className="text-2xl font-bold text-red-800 mt-1">{formatearPeso(deudaTotalPeriodo)}</p>
           <p className="text-xs text-slate-500 mt-1">{deudasPorCliente.length} clientes con deuda</p>
         </div>
         <div className="card p-4">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Ventas registradas (mes)</p>
-          <p className="text-2xl font-bold text-slate-800 mt-1">{ventasMes.length}</p>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Ventas registradas (período)</p>
+          <p className="text-2xl font-bold text-slate-800 mt-1">{ventasPeriodo.length}</p>
+          <p className="text-xs text-slate-500 mt-1">{periodoLabel}</p>
         </div>
       </div>
 
