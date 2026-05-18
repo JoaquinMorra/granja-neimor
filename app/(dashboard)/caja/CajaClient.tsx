@@ -15,7 +15,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts'
-import { Plus, X, TrendingUp, TrendingDown, Wallet, ArrowLeftRight } from 'lucide-react'
+import { Plus, X, TrendingUp, TrendingDown, Wallet, ArrowLeftRight, Pencil, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 
 type Periodo = { inicio: string; fin: string; label: string }
@@ -172,9 +172,163 @@ function NuevoMovimientoModal({ onClose }: { onClose: () => void }) {
   )
 }
 
+function EditarMovimientoModal({ movimiento, onClose }: { movimiento: Caja; onClose: () => void }) {
+  const router = useRouter()
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [form, setForm] = useState({
+    fecha: movimiento.fecha,
+    tipo: movimiento.tipo,
+    medio_pago: movimiento.medio_pago,
+    categoria: movimiento.categoria,
+    descripcion: movimiento.descripcion ?? '',
+    monto: String(movimiento.monto),
+  })
+
+  const categorias = form.tipo === 'INGRESO' ? CATEGORIAS_INGRESO : CATEGORIAS_EGRESO
+
+  function handleTipoChange(tipo: 'INGRESO' | 'EGRESO') {
+    setForm((prev) => ({ ...prev, tipo, categoria: '' }))
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!form.categoria) { setError('Seleccioná una categoría.'); return }
+    if (!form.monto || parseFloat(form.monto) <= 0) { setError('El monto debe ser mayor a 0.'); return }
+
+    setLoading(true)
+    setError(null)
+    const supabase = createClient()
+    const { error: err } = await supabase.from('caja').update({
+      fecha: form.fecha,
+      tipo: form.tipo,
+      medio_pago: form.medio_pago,
+      categoria: form.categoria,
+      descripcion: form.descripcion || null,
+      monto: parseFloat(form.monto),
+    }).eq('id', movimiento.id)
+
+    if (err) { setError(err.message); setLoading(false); return }
+    router.refresh()
+    onClose()
+  }
+
+  return (
+    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal-content">
+        <div className="flex items-center justify-between p-6 border-b border-slate-100">
+          <h2 className="text-lg font-semibold text-slate-800">Editar movimiento</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="label">Fecha</label>
+              <input type="date" value={form.fecha}
+                onChange={(e) => setForm((p) => ({ ...p, fecha: e.target.value }))}
+                className="input" required />
+            </div>
+            <div>
+              <label className="label">Tipo</label>
+              <div className="flex gap-2">
+                <button type="button"
+                  onClick={() => handleTipoChange('INGRESO')}
+                  className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                    form.tipo === 'INGRESO'
+                      ? 'bg-green-600 text-white border-green-600'
+                      : 'bg-white text-slate-700 border-slate-300 hover:border-green-400'
+                  }`}>
+                  INGRESO
+                </button>
+                <button type="button"
+                  onClick={() => handleTipoChange('EGRESO')}
+                  className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                    form.tipo === 'EGRESO'
+                      ? 'bg-red-600 text-white border-red-600'
+                      : 'bg-white text-slate-700 border-slate-300 hover:border-red-400'
+                  }`}>
+                  EGRESO
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Medio de pago</label>
+            <div className="flex gap-2">
+              <button type="button"
+                onClick={() => setForm((p) => ({ ...p, medio_pago: 'EFECTIVO' }))}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                  form.medio_pago === 'EFECTIVO'
+                    ? 'bg-slate-700 text-white border-slate-700'
+                    : 'bg-white text-slate-700 border-slate-300 hover:border-slate-500'
+                }`}>
+                Efectivo
+              </button>
+              <button type="button"
+                onClick={() => setForm((p) => ({ ...p, medio_pago: 'TRANSFERENCIA' }))}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                  form.medio_pago === 'TRANSFERENCIA'
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-slate-700 border-slate-300 hover:border-blue-400'
+                }`}>
+                Transferencia
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Categoría</label>
+            <select value={form.categoria}
+              onChange={(e) => setForm((p) => ({ ...p, categoria: e.target.value }))}
+              className="input" required>
+              <option value="">Seleccioná una categoría</option>
+              {categorias.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className="label">Descripción (opcional)</label>
+            <input type="text" value={form.descripcion}
+              onChange={(e) => setForm((p) => ({ ...p, descripcion: e.target.value }))}
+              className="input" placeholder="Detalle del movimiento..." />
+          </div>
+
+          <div>
+            <label className="label">Monto ($)</label>
+            <input type="number" min="0" step="0.01" value={form.monto}
+              onChange={(e) => setForm((p) => ({ ...p, monto: e.target.value }))}
+              className="input" placeholder="0" required />
+          </div>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-700">{error}</div>
+          )}
+
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancelar</button>
+            <button type="submit" disabled={loading} className="btn-primary flex-1">
+              {loading ? 'Guardando...' : 'Guardar cambios'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 export default function CajaClient({ movimientos, resumenMensual, periodoLabel, periodos }: Props) {
+  const router = useRouter()
   const [modalOpen, setModalOpen] = useState(false)
+  const [movimientoEditando, setMovimientoEditando] = useState<Caja | null>(null)
   const [filtroTipo, setFiltroTipo] = useState('todos')
+
+  async function handleEliminar(id: number) {
+    if (!confirm('¿Eliminár este movimiento?')) return
+    const supabase = createClient()
+    await supabase.from('caja').delete().eq('id', id)
+    router.refresh()
+  }
 
   const totalIngresos = movimientos
     .filter((m) => m.tipo === 'INGRESO')
@@ -404,12 +558,13 @@ export default function CajaClient({ movimientos, resumenMensual, periodoLabel, 
                 <th className="table-th">Categoría</th>
                 <th className="table-th">Descripción</th>
                 <th className="table-th text-right">Monto</th>
+                <th className="table-th"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {movimientosFiltrados.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="table-td text-center text-slate-400 py-8">
+                  <td colSpan={7} className="table-td text-center text-slate-400 py-8">
                     Sin movimientos
                   </td>
                 </tr>
@@ -448,6 +603,24 @@ export default function CajaClient({ movimientos, resumenMensual, periodoLabel, 
                     >
                       {m.tipo === 'INGRESO' ? '+' : '-'} {formatearPeso(m.monto)}
                     </td>
+                    <td className="table-td">
+                      <div className="flex items-center gap-1 justify-end">
+                        <button
+                          onClick={() => setMovimientoEditando(m)}
+                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                          title="Editar"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleEliminar(m.id)}
+                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                          title="Eliminar"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))
               )}
@@ -457,6 +630,12 @@ export default function CajaClient({ movimientos, resumenMensual, periodoLabel, 
       </div>
 
       {modalOpen && <NuevoMovimientoModal onClose={() => setModalOpen(false)} />}
+      {movimientoEditando && (
+        <EditarMovimientoModal
+          movimiento={movimientoEditando}
+          onClose={() => setMovimientoEditando(null)}
+        />
+      )}
     </div>
   )
 }
