@@ -323,7 +323,7 @@ export default function CajaClient({ movimientos, resumenMensual, periodoLabel, 
   const [movimientoEditando, setMovimientoEditando] = useState<Caja | null>(null)
   const [filtroTipo, setFiltroTipo] = useState('todos')
 
-  async function handleEliminar(id: number) {
+  async function handleEliminar(id: string) {
     if (!confirm('¿Eliminár este movimiento?')) return
     const supabase = createClient()
     await supabase.from('caja').delete().eq('id', id)
