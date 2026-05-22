@@ -18,19 +18,14 @@ export default async function CostosPage({
   const label = periodoEncontrado?.label ?? periodoActual.label
 
   const [
-    { data: comprasRaw },
     { data: egresosRaw },
     { data: produccionRaw },
     { data: gallinasRaw },
     { data: configRaw },
     { data: productos },
     { data: ventasRaw },
+    { data: galponesRaw },
   ] = await Promise.all([
-    supabase
-      .from('compras_proveedor')
-      .select('total, kg_alimento, proveedor:proveedores(tipo)')
-      .gte('fecha', inicio)
-      .lte('fecha', fin),
     supabase
       .from('caja')
       .select('categoria, monto')
@@ -42,7 +37,7 @@ export default async function CostosPage({
       .select('huevos')
       .gte('fecha', inicio)
       .lte('fecha', fin),
-    supabase.from('gallinas_actuales').select('gallinas_actuales'),
+    supabase.from('gallinas_actuales').select('galpon_id, gallinas_actuales'),
     supabase.from('config_costos').select('*').limit(1).single(),
     supabase.from('productos').select('id, codigo, nombre, precio_mayorista, precio_minorista, unidades_por_caja').eq('activo', true).order('codigo'),
     supabase
@@ -51,12 +46,8 @@ export default async function CostosPage({
       .gte('fecha', inicio)
       .lte('fecha', fin)
       .neq('estado', 'PENDIENTE'),
+    supabase.from('galpones').select('id, tipo'),
   ])
-
-  // Alimento devengado del período (compras a proveedor de alimento)
-  const comprasAlimento = (comprasRaw ?? []).filter((c: any) => c.proveedor?.tipo === 'alimento')
-  const alimentoDevengado = comprasAlimento.reduce((s: number, c: any) => s + c.total, 0)
-  const kgAlimentoCargado = comprasAlimento.reduce((s: number, c: any) => s + (c.kg_alimento ?? 0), 0)
 
   // Egresos por categoría
   const egresos = egresosRaw ?? []
@@ -65,16 +56,38 @@ export default async function CostosPage({
   // Producción total
   const huevosTotales = (produccionRaw ?? []).reduce((s: number, p: any) => s + p.huevos, 0)
 
-  // Gallinas activas
-  const gallinasActivas = (gallinasRaw ?? []).reduce((s: number, g: any) => s + (g.gallinas_actuales ?? 0), 0)
+  // Gallinas por tipo (blancas vs coloradas)
+  const galpones = galponesRaw ?? []
+  const gallinasData = gallinasRaw ?? []
+
+  const gallonasPorTipo = galpones.reduce(
+    (acc: { blancas: number; coloradas: number }, g: any) => {
+      const gallinasGalpon = gallinasData
+        .filter((ga: any) => ga.galpon_id === g.id)
+        .reduce((s: number, ga: any) => s + (ga.gallinas_actuales ?? 0), 0)
+      if (g.tipo === 'blancas') acc.blancas += gallinasGalpon
+      else if (g.tipo === 'coloradas') acc.coloradas += gallinasGalpon
+      return acc
+    },
+    { blancas: 0, coloradas: 0 }
+  )
+
+  const gallinasActivas = gallonasPorTipo.blancas + gallonasPorTipo.coloradas
 
   // Config
-  const config = configRaw ?? { costo_recria_por_ave: 3000, vida_util_semanas: 75 }
+  const config = configRaw ?? { costo_recria_por_ave: 3000, vida_util_semanas: 75, precio_kg_alimento: 0 }
 
-  // Consumo estimado para el período (días entre inicio y fin)
+  // Días del período
   const diasPeriodo = Math.round((new Date(fin).getTime() - new Date(inicio).getTime()) / (1000 * 60 * 60 * 24)) + 1
   const semanasPeriodo = diasPeriodo / 7
-  const kgEstimados = gallinasActivas * 0.13 * diasPeriodo
+
+  // Consumo estimado (kg): blancas 115g/día, coloradas 120g/día
+  const kgEstimadosBlancas = gallonasPorTipo.blancas * 0.115 * diasPeriodo
+  const kgEstimadosColoradas = gallonasPorTipo.coloradas * 0.120 * diasPeriodo
+  const kgEstimados = kgEstimadosBlancas + kgEstimadosColoradas
+
+  // Costo de alimento por consumo (Opción A)
+  const alimentoConsumo = kgEstimados * (config.precio_kg_alimento ?? 0)
 
   // Amortización aves
   const amortizacionAves =
@@ -93,9 +106,12 @@ export default async function CostosPage({
       periodos={periodos}
       periodoInicio={inicio}
       periodoLabel={label}
-      alimentoDevengado={alimentoDevengado}
-      kgAlimentoCargado={kgAlimentoCargado}
+      alimentoConsumo={alimentoConsumo}
       kgEstimados={kgEstimados}
+      kgEstimadosBlancas={kgEstimadosBlancas}
+      kgEstimadosColoradas={kgEstimadosColoradas}
+      gallinasBlancas={gallonasPorTipo.blancas}
+      gallinasColoradas={gallonasPorTipo.coloradas}
       sueldos={sumaCat('Sueldos')}
       maples={sumaCat('Maples')}
       mantenimiento={sumaCat('Mantenimiento')}

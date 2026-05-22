@@ -18,10 +18,13 @@ export default function ConfiguracionClient({ config }: Props) {
   const [form, setForm] = useState({
     costo_recria_por_ave: config.costo_recria_por_ave.toString(),
     vida_util_semanas: config.vida_util_semanas.toString(),
+    precio_kg_alimento: config.precio_kg_alimento?.toString() ?? '0',
   })
 
   const amortizacionPorSemana =
     parseFloat(form.costo_recria_por_ave || '0') / parseFloat(form.vida_util_semanas || '1')
+
+  const precioKg = parseFloat(form.precio_kg_alimento || '0')
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -32,6 +35,7 @@ export default function ConfiguracionClient({ config }: Props) {
     const payload = {
       costo_recria_por_ave: parseFloat(form.costo_recria_por_ave),
       vida_util_semanas: parseInt(form.vida_util_semanas),
+      precio_kg_alimento: precioKg,
       updated_at: new Date().toISOString(),
     }
 
@@ -45,6 +49,7 @@ export default function ConfiguracionClient({ config }: Props) {
     setLoading(false)
     setTimeout(() => {
       router.push('/costos')
+      router.refresh()
     }, 1200)
   }
 
@@ -62,6 +67,37 @@ export default function ConfiguracionClient({ config }: Props) {
 
       <div className="card p-6">
         <form onSubmit={handleSubmit} className="space-y-5">
+
+          {/* Precio alimento */}
+          <div>
+            <label className="label">Precio del alimento ($/kg)</label>
+            <input type="number" min="0" step="any"
+              value={form.precio_kg_alimento}
+              onChange={(e) => setForm((p) => ({ ...p, precio_kg_alimento: e.target.value }))}
+              className="input" required />
+            <p className="text-xs text-slate-500 mt-1">
+              Precio actual del kg de alimento balanceado. Se usa para calcular el costo de alimento por consumo estimado.
+            </p>
+          </div>
+
+          <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
+            <p className="text-sm font-medium text-amber-800 mb-1">Consumo de referencia</p>
+            <p className="text-xs text-amber-700">Blancas: 115 g/gallina/día · Coloradas: 120 g/gallina/día</p>
+            {precioKg > 0 && (
+              <div className="mt-2 space-y-0.5">
+                <p className="text-xs text-amber-800">
+                  Blancas: {formatearPeso(0.115 * precioKg)}/gallina/día
+                </p>
+                <p className="text-xs text-amber-800">
+                  Coloradas: {formatearPeso(0.120 * precioKg)}/gallina/día
+                </p>
+              </div>
+            )}
+          </div>
+
+          <hr className="border-slate-100" />
+
+          {/* Amortización aves */}
           <div>
             <label className="label">Costo de recría por ave ($)</label>
             <input type="number" min="0" step="any"

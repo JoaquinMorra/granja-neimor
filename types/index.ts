@@ -169,6 +169,7 @@ export type ConfigCostos = {
   id: string
   costo_recria_por_ave: number
   vida_util_semanas: number
+  precio_kg_alimento: number
   updated_at: string
 }
 

@@ -11,9 +11,12 @@ type Props = {
   periodos: { inicio: string; fin: string; label: string }[]
   periodoInicio: string
   periodoLabel: string
-  alimentoDevengado: number
-  kgAlimentoCargado: number
+  alimentoConsumo: number
   kgEstimados: number
+  kgEstimadosBlancas: number
+  kgEstimadosColoradas: number
+  gallinasBlancas: number
+  gallinasColoradas: number
   sueldos: number
   maples: number
   mantenimiento: number
@@ -26,7 +29,7 @@ type Props = {
   diasPeriodo: number
   productos: ProductoMin[]
   ventasPorTipo: Record<string, { monto: number; huevos: number }>
-  config: { costo_recria_por_ave: number; vida_util_semanas: number }
+  config: { costo_recria_por_ave: number; vida_util_semanas: number; precio_kg_alimento: number }
 }
 
 // Mapeo código → tipo_venta legacy (para cruzar con ventasPorTipo)
@@ -38,15 +41,18 @@ const CODIGO_A_TIPO: Record<string, string> = {
 
 export default function CostosClient({
   periodos, periodoInicio, periodoLabel,
-  alimentoDevengado, kgAlimentoCargado, kgEstimados,
+  alimentoConsumo, kgEstimados, kgEstimadosBlancas, kgEstimadosColoradas,
+  gallinasBlancas, gallinasColoradas,
   sueldos, maples, mantenimiento, combustible, gastosGenerales, sanidad, amortizacionAves,
   huevosTotales, gallinasActivas, diasPeriodo,
   productos, ventasPorTipo, config,
 }: Props) {
   const router = useRouter()
 
+  const sinPrecioKg = config.precio_kg_alimento === 0
+
   const totalCostos =
-    alimentoDevengado + sueldos + maples + mantenimiento +
+    alimentoConsumo + sueldos + maples + mantenimiento +
     combustible + gastosGenerales + sanidad + amortizacionAves
 
   const docenas = huevosTotales / 12
@@ -56,10 +62,12 @@ export default function CostosClient({
   const costoPorDocena = docenas > 0 ? totalCostos / docenas : 0
   const costoPorCajon = cajones > 0 ? totalCostos / cajones : 0
 
-  const alertaAlimento = kgAlimentoCargado > 0 && kgAlimentoCargado < kgEstimados * 0.9
+  const fuenteAlimento = config.precio_kg_alimento > 0
+    ? `${kgEstimados.toFixed(0)} kg estimados × $${config.precio_kg_alimento.toLocaleString('es-AR')}/kg (${gallinasBlancas > 0 ? `${gallinasBlancas.toLocaleString('es-AR')} blancas × 115g` : ''}${gallinasBlancas > 0 && gallinasColoradas > 0 ? ' + ' : ''}${gallinasColoradas > 0 ? `${gallinasColoradas.toLocaleString('es-AR')} coloradas × 120g` : ''})`
+    : 'Sin precio/kg configurado — ir a Configuración'
 
   const filasCostos = [
-    { label: 'Alimento (devengado)', monto: alimentoDevengado, fuente: 'Compras a proveedor de alimento del período' },
+    { label: 'Alimento (consumo)', monto: alimentoConsumo, fuente: fuenteAlimento },
     { label: 'Sueldos', monto: sueldos, fuente: 'Egresos caja categoría "Sueldos"' },
     { label: 'Maples', monto: maples, fuente: 'Egresos caja categoría "Maples"' },
     { label: 'Mantenimiento', monto: mantenimiento, fuente: 'Egresos caja categoría "Mantenimiento"' },
@@ -93,14 +101,13 @@ export default function CostosClient({
         </div>
       </div>
 
-      {/* Alerta alimento */}
-      {alertaAlimento && (
+      {/* Alerta precio kg sin configurar */}
+      {sinPrecioKg && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-3">
           <AlertTriangle className="text-amber-500 shrink-0 mt-0.5" size={18} />
           <p className="text-sm text-amber-800">
-            El período tiene <strong>{Math.round(kgEstimados).toLocaleString('es-AR')} kg</strong> estimados de consumo
-            pero solo se cargaron compras por <strong>{kgAlimentoCargado.toLocaleString('es-AR')} kg</strong>.
-            Faltan compras de alimento por cargar en el módulo de Proveedores.
+            El <strong>precio por kg de alimento</strong> no está configurado. El costo de alimento figura en $0.{' '}
+            <Link href="/costos/configuracion" className="underline font-medium">Configurar ahora →</Link>
           </p>
         </div>
       )}
@@ -116,7 +123,7 @@ export default function CostosClient({
               <tr className="border-b border-slate-100 bg-slate-50">
                 <th className="table-th">Categoría</th>
                 <th className="table-th text-right">Monto</th>
-                <th className="table-th">Fuente</th>
+                <th className="table-th">Fuente / Cálculo</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -137,7 +144,37 @@ export default function CostosClient({
         </div>
       </div>
 
-      {/* Sección 2: Producción */}
+      {/* Sección 2: Consumo de alimento */}
+      <div className="card p-5">
+        <h3 className="font-semibold text-slate-800 mb-4">Consumo estimado de alimento</h3>
+        <div className="grid grid-cols-3 gap-4">
+          {gallinasBlancas > 0 && (
+            <div className="text-center p-4 bg-slate-50 rounded-xl">
+              <p className="text-xs text-slate-500 mb-1">Blancas ({gallinasBlancas.toLocaleString('es-AR')} gallinas)</p>
+              <p className="text-xl font-bold text-slate-800">{kgEstimadosBlancas.toFixed(0)} kg</p>
+              <p className="text-xs text-slate-400 mt-0.5">115 g/día × {diasPeriodo} días</p>
+            </div>
+          )}
+          {gallinasColoradas > 0 && (
+            <div className="text-center p-4 bg-slate-50 rounded-xl">
+              <p className="text-xs text-slate-500 mb-1">Coloradas ({gallinasColoradas.toLocaleString('es-AR')} gallinas)</p>
+              <p className="text-xl font-bold text-slate-800">{kgEstimadosColoradas.toFixed(0)} kg</p>
+              <p className="text-xs text-slate-400 mt-0.5">120 g/día × {diasPeriodo} días</p>
+            </div>
+          )}
+          <div className="text-center p-4 bg-blue-50 rounded-xl">
+            <p className="text-xs text-slate-500 mb-1">Total consumo</p>
+            <p className="text-xl font-bold text-blue-800">{kgEstimados.toFixed(0)} kg</p>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {config.precio_kg_alimento > 0
+                ? `× $${config.precio_kg_alimento.toLocaleString('es-AR')}/kg`
+                : 'Sin precio configurado'}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Sección 3: Producción */}
       <div className="card p-5">
         <h3 className="font-semibold text-slate-800 mb-4">Producción del período</h3>
         <div className="grid grid-cols-3 gap-4">
@@ -156,7 +193,7 @@ export default function CostosClient({
         </div>
       </div>
 
-      {/* Sección 3: Resultado */}
+      {/* Sección 4: Resultado */}
       <div>
         <h3 className="font-semibold text-slate-800 mb-3">Costo de producción</h3>
         <div className="grid grid-cols-3 gap-4">
@@ -175,7 +212,7 @@ export default function CostosClient({
         </div>
       </div>
 
-      {/* Sección 4: Comparación con precios de venta */}
+      {/* Sección 5: Comparación con precios de venta */}
       {productos.length > 0 && (
         <div className="card overflow-hidden">
           <div className="p-5 border-b border-slate-100">
