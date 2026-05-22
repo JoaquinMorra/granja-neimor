@@ -85,6 +85,7 @@ export const CATEGORIAS_INGRESO = [
 export const CATEGORIAS_EGRESO = [
   'Alimento',
   'Medicación',
+  'Sanidad',
   'Combustible',
   'Gastos generales',
   'Sueldos',
@@ -99,6 +100,27 @@ export const CATEGORIAS_EGRESO = [
   'Mantenimiento',
   'Otros',
 ]
+
+// Mapeo de tipo de proveedor → categoría en Caja
+export const CATEGORIA_CAJA_POR_TIPO_PROVEEDOR: Record<string, string> = {
+  alimento: 'Alimento',
+  maples: 'Maples',
+  sanidad: 'Sanidad',
+  servicios: 'Gastos generales',
+  mantenimiento: 'Mantenimiento',
+  otros: 'Otros',
+}
+
+// Mapeo de código de producto → tipo_venta legacy
+export const CODIGO_A_TIPO_VENTA: Record<string, string> = {
+  'CAJON': 'CAJON',
+  'CAJONB1': 'CAJONB1',
+  'CAJONB2': 'CAJONB2',
+  'CAJON_B3': 'CAJON B3',
+  'CAJITAS_DOCENA': 'CAJITAS DOCENA',
+  'CAJITAS_MEDIA': 'CAJITAS 1/2 DOCENA',
+  'MAPLE': 'MAPLE',
+}
 
 export const PUNTO_EQUILIBRIO_CAJONES = 66
 

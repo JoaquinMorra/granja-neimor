@@ -13,6 +13,8 @@ import {
   DollarSign,
   CreditCard,
   Building2,
+  Truck,
+  Scale,
 } from 'lucide-react'
 import {
   calcularEdadSemanas,
@@ -46,6 +48,7 @@ async function getDashboardData() {
     { data: ventasMes },
     { data: deudas },
     { data: ventasMensuales },
+    { data: comprasProveedores },
   ] = await Promise.all([
     supabase.from('galpones').select('*').order('orden'),
     supabase.from('gallinas_actuales').select('*'),
@@ -63,6 +66,7 @@ async function getDashboardData() {
       .select('fecha, equivalente_huevos')
       .gte('fecha', periodosVentas[0].inicio)
       .order('fecha'),
+    supabase.from('compras_proveedor').select('total, monto_pagado'),
   ])
 
   // Total gallinas por galpón
@@ -144,6 +148,18 @@ async function getDashboardData() {
 
   const alertasCount = posturaGalpones.filter((p) => p.alerta).length
 
+  // Deuda a proveedores
+  const deudaProveedores = (comprasProveedores ?? []).reduce(
+    (s: number, c: any) => s + Math.max(0, (c.total ?? 0) - (c.monto_pagado ?? 0)),
+    0
+  )
+
+  // Cuentas por cobrar (deuda de clientes)
+  const cuentasPorCobrar = deudaTotal
+
+  // Caja neta = deuda clientes - deuda proveedores (simplificado)
+  const cajaNeta = cuentasPorCobrar - deudaProveedores
+
   return {
     totalGallinas,
     gallonasPorGalpon,
@@ -151,6 +167,8 @@ async function getDashboardData() {
     cajonesHoy,
     montoVentasHoy,
     deudaTotal,
+    deudaProveedores,
+    cajaNeta,
     posturaGalpones,
     prodSemanaChart,
     mesesVentas,
@@ -216,6 +234,25 @@ export default async function DashboardPage() {
           icon={CreditCard}
           color={data.deudaTotal > 0 ? 'red' : 'green'}
           alert={data.deudaTotal > 0}
+        />
+      </div>
+
+      {/* KPIs proveedores */}
+      <div className="grid grid-cols-2 gap-4">
+        <KPICard
+          title="Deuda a proveedores"
+          value={formatearPeso(data.deudaProveedores)}
+          subtitle="Compras sin pagar"
+          icon={Truck}
+          color={data.deudaProveedores > 0 ? 'red' : 'green'}
+          alert={data.deudaProveedores > 0}
+        />
+        <KPICard
+          title="Exposición neta"
+          value={formatearPeso(Math.abs(data.cajaNeta))}
+          subtitle={data.cajaNeta >= 0 ? 'A favor (cobrar > pagar)' : 'En contra (pagar > cobrar)'}
+          icon={Scale}
+          color={data.cajaNeta >= 0 ? 'green' : 'red'}
         />
       </div>
 

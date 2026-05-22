@@ -12,6 +12,9 @@ import {
   LogOut,
   Menu,
   X,
+  Truck,
+  Package,
+  BarChart3,
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -21,6 +24,9 @@ const NAV_ITEMS = [
   { href: '/ventas', label: 'Ventas', icon: ShoppingCart },
   { href: '/caja', label: 'Caja', icon: Wallet },
   { href: '/galpones', label: 'Galpones', icon: Building2 },
+  { href: '/proveedores', label: 'Proveedores', icon: Truck },
+  { href: '/productos', label: 'Productos', icon: Package },
+  { href: '/costos', label: 'Costos', icon: BarChart3 },
 ]
 
 export default function Sidebar() {
@@ -50,7 +56,7 @@ export default function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-1">
+      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon
           const isActive =

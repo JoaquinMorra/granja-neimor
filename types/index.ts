@@ -60,6 +60,12 @@ export type Venta = {
   monto_debe: number
   notas: string | null
   created_at: string
+  // Catálogo de productos
+  producto_id: string | null
+  precio_unitario: number | null
+  precio_oficial: number | null
+  precio_modificado: boolean | null
+  motivo_precio: string | null
 }
 
 export type TipoCaja = 'INGRESO' | 'EGRESO'
@@ -75,6 +81,101 @@ export type Caja = {
   monto: number
   medio_pago: MedioPagoCaja
   created_at: string
+}
+
+// ============================================================
+// Proveedores
+// ============================================================
+export type TipoProveedor = 'alimento' | 'maples' | 'sanidad' | 'servicios' | 'mantenimiento' | 'otros'
+
+export type Proveedor = {
+  id: string
+  nombre: string
+  tipo: TipoProveedor
+  contacto: string | null
+  notas: string | null
+  created_at: string
+}
+
+export type EstadoCompra = 'pendiente' | 'parcial' | 'pagada'
+
+export type CompraProveedor = {
+  id: string
+  proveedor_id: string
+  fecha: string
+  descripcion: string
+  cantidad: number
+  unidad: string
+  precio_unitario: number
+  total: number
+  vencimiento: string | null
+  estado: EstadoCompra
+  monto_pagado: number
+  kg_alimento: number | null
+  notas: string | null
+  created_at: string
+}
+
+export type MetodoPagoProveedor = 'efectivo' | 'transferencia' | 'mixto'
+
+export type PagoProveedor = {
+  id: string
+  proveedor_id: string
+  fecha: string
+  monto: number
+  metodo: MetodoPagoProveedor
+  compras_asociadas: string[]
+  movimiento_caja_id: string | null
+  notas: string | null
+  created_at: string
+}
+
+// ============================================================
+// Catálogo de productos
+// ============================================================
+export type ColorProducto = 'blanco' | 'colorado' | 'mixto'
+export type CategoriaProducto = 'super' | 'n1' | 'n2' | 'n3' | 'sin_clasificar'
+
+export type Producto = {
+  id: string
+  codigo: string
+  nombre: string
+  descripcion: string | null
+  color: ColorProducto
+  categoria: CategoriaProducto
+  unidades_por_caja: number
+  precio_mayorista: number
+  precio_minorista: number
+  activo: boolean
+  created_at: string
+}
+
+export type PrecioEspecialCliente = {
+  id: string
+  cliente: string
+  producto_id: string
+  precio: number
+  motivo: string
+  vigente_desde: string
+  vigente_hasta: string | null
+  created_at: string
+  producto?: Producto
+}
+
+// ============================================================
+// Costos
+// ============================================================
+export type ConfigCostos = {
+  id: string
+  costo_recria_por_ave: number
+  vida_util_semanas: number
+  updated_at: string
+}
+
+export type ClienteConfig = {
+  cliente: string
+  limite_credito: number | null
+  updated_at: string
 }
 
 export type PosturaRango = { min: number; max: number }

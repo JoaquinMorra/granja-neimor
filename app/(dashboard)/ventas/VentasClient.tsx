@@ -4,13 +4,9 @@ import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import NuevaVentaModal from '@/components/ventas/NuevaVentaModal'
-import type { Venta } from '@/types'
-import {
-  formatearFecha,
-  formatearPeso,
-  PUNTO_EQUILIBRIO_CAJONES,
-} from '@/lib/utils'
-import { Plus, CheckCircle, Edit, Trash2 } from 'lucide-react'
+import type { Venta, Producto, PrecioEspecialCliente, ClienteConfig } from '@/types'
+import { formatearFecha, formatearPeso, PUNTO_EQUILIBRIO_CAJONES } from '@/lib/utils'
+import { Plus, CheckCircle, Edit, Trash2, X } from 'lucide-react'
 
 type Periodo = { inicio: string; fin: string; label: string }
 
@@ -21,6 +17,9 @@ type Props = {
   periodoLabel: string
   periodoInicio: string
   periodos: Periodo[]
+  productos: Producto[]
+  preciosEspeciales: (PrecioEspecialCliente & { producto?: { codigo: string } })[]
+  clientesConfig: ClienteConfig[]
 }
 
 function EstadoBadge({ estado }: { estado: string }) {
@@ -29,7 +28,67 @@ function EstadoBadge({ estado }: { estado: string }) {
   return <span className="badge-parcial">PARCIAL</span>
 }
 
-export default function VentasClient({ ventas, ventasPeriodo, clientesExistentes, periodoLabel, periodoInicio, periodos }: Props) {
+function CuentaCorrienteModal({ cliente, ventas, onClose }: { cliente: string; ventas: Venta[]; onClose: () => void }) {
+  const ventasCliente = ventas
+    .filter((v) => v.cliente === cliente)
+    .sort((a, b) => a.fecha.localeCompare(b.fecha))
+
+  let saldoAcumulado = 0
+  const filas = ventasCliente.map((v) => {
+    saldoAcumulado += v.monto_debe - v.monto_cobrado
+    return { venta: v, saldo: saldoAcumulado }
+  })
+
+  return (
+    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+        <div className="flex items-center justify-between p-6 border-b border-slate-100">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-800">Cuenta corriente — {cliente}</h2>
+            <p className="text-sm text-slate-500">{filas.length} movimientos</p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+        </div>
+        <div className="overflow-auto flex-1">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-slate-50">
+              <tr className="border-b border-slate-100">
+                <th className="table-th">Fecha</th>
+                <th className="table-th">Producto</th>
+                <th className="table-th">Cant.</th>
+                <th className="table-th">Estado</th>
+                <th className="table-th text-right">Cobrado</th>
+                <th className="table-th text-right">Debe</th>
+                <th className="table-th text-right">Saldo</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {filas.map(({ venta: v, saldo }) => (
+                <tr key={v.id} className={`hover:bg-slate-50 ${v.estado !== 'PAGO' ? 'bg-red-50/30' : ''}`}>
+                  <td className="table-td whitespace-nowrap">{formatearFecha(v.fecha)}</td>
+                  <td className="table-td text-xs">{v.tipo_venta}</td>
+                  <td className="table-td text-center">{v.cantidad}</td>
+                  <td className="table-td"><EstadoBadge estado={v.estado} /></td>
+                  <td className="table-td text-right text-green-700">{v.monto_cobrado > 0 ? formatearPeso(v.monto_cobrado) : '—'}</td>
+                  <td className="table-td text-right text-red-700">{v.monto_debe > 0 ? formatearPeso(v.monto_debe) : '—'}</td>
+                  <td className={`table-td text-right font-semibold ${saldo > 0 ? 'text-red-700' : 'text-green-700'}`}>
+                    {formatearPeso(Math.abs(saldo))}
+                    {saldo > 0 ? ' 🔴' : ' ✅'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function VentasClient({
+  ventas, ventasPeriodo, clientesExistentes, periodoLabel, periodoInicio, periodos,
+  productos, preciosEspeciales, clientesConfig,
+}: Props) {
   const router = useRouter()
   const [modalOpen, setModalOpen] = useState(false)
   const [ventaEditar, setVentaEditar] = useState<Venta | undefined>()
@@ -41,23 +100,47 @@ export default function VentasClient({ ventas, ventasPeriodo, clientesExistentes
   const [markingPago, setMarkingPago] = useState<string | null>(null)
   const [pagoModal, setPagoModal] = useState<Venta | null>(null)
   const [montoPago, setMontoPago] = useState('')
+  const [cuentaCorriente, setCuentaCorriente] = useState<string | null>(null)
 
   const cajonesVendidosPeriodo = ventasPeriodo.reduce((s, v) => s + v.equivalente_huevos / 360, 0)
   const deudaTotalPeriodo = ventasPeriodo.reduce((s, v) => s + (v.monto_debe ?? 0), 0)
   const ingresadoPeriodo = ventasPeriodo.reduce((s, v) => s + (v.monto_cobrado ?? 0), 0)
 
-  // Deudas por cliente
+  const hoy = new Date()
+
+  // Deudas por cliente con datos extra
   const deudasPorCliente = useMemo(() => {
-    const mapa = new Map<string, number>()
+    const mapa = new Map<string, { total: number; ventasMasVieja: string | null; cantidadVentas: number }>()
     ventas
       .filter((v) => v.estado !== 'PAGO' && v.monto_debe > 0)
       .forEach((v) => {
-        mapa.set(v.cliente, (mapa.get(v.cliente) ?? 0) + v.monto_debe)
+        const actual = mapa.get(v.cliente)
+        const masVieja = actual?.ventasMasVieja
+          ? (v.fecha < actual.ventasMasVieja ? v.fecha : actual.ventasMasVieja)
+          : v.fecha
+        mapa.set(v.cliente, {
+          total: (actual?.total ?? 0) + v.monto_debe,
+          ventasMasVieja: masVieja,
+          cantidadVentas: (actual?.cantidadVentas ?? 0) + 1,
+        })
       })
     return Array.from(mapa.entries())
-      .sort(([, a], [, b]) => b - a)
-      .map(([cliente, total]) => ({ cliente, total }))
-  }, [ventas])
+      .sort(([, a], [, b]) => b.total - a.total)
+      .map(([cliente, data]) => {
+        const config = clientesConfig.find((c) => c.cliente === cliente)
+        const diasDeuda = data.ventasMasVieja
+          ? Math.floor((hoy.getTime() - new Date(data.ventasMasVieja + 'T12:00:00').getTime()) / (1000 * 60 * 60 * 24))
+          : 0
+        return {
+          cliente,
+          total: data.total,
+          cantidadVentas: data.cantidadVentas,
+          diasDeuda,
+          limiteCredito: config?.limite_credito ?? null,
+          excedeLimite: config?.limite_credito != null && data.total > config.limite_credito,
+        }
+      })
+  }, [ventas, clientesConfig, hoy])
 
   const ventasFiltradas = useMemo(() => {
     return ventas.filter((v) => {
@@ -93,11 +176,7 @@ export default function VentasClient({ ventas, ventasPeriodo, clientesExistentes
     const montoNuevo = parseFloat(montoPago || '0')
     await supabase
       .from('ventas')
-      .update({
-        estado: 'PAGO',
-        monto_debe: 0,
-        monto_cobrado: pagoModal.monto_cobrado + montoNuevo,
-      })
+      .update({ estado: 'PAGO', monto_debe: 0, monto_cobrado: pagoModal.monto_cobrado + montoNuevo })
       .eq('id', pagoModal.id)
     setPagoModal(null)
     setMontoPago('')
@@ -128,7 +207,7 @@ export default function VentasClient({ ventas, ventasPeriodo, clientesExistentes
         </button>
       </div>
 
-      {/* KPIs del período */}
+      {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="card p-4">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Cajones vendidos (período)</p>
@@ -137,11 +216,8 @@ export default function VentasClient({ ventas, ventasPeriodo, clientesExistentes
           <div className="mt-2 h-1.5 bg-slate-100 rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full ${
-                cajonesVendidosPeriodo >= PUNTO_EQUILIBRIO_CAJONES * 4
-                  ? 'bg-green-500'
-                  : cajonesVendidosPeriodo >= PUNTO_EQUILIBRIO_CAJONES * 3
-                  ? 'bg-amber-400'
-                  : 'bg-red-400'
+                cajonesVendidosPeriodo >= PUNTO_EQUILIBRIO_CAJONES * 4 ? 'bg-green-500'
+                : cajonesVendidosPeriodo >= PUNTO_EQUILIBRIO_CAJONES * 3 ? 'bg-amber-400' : 'bg-red-400'
               }`}
               style={{ width: `${Math.min((cajonesVendidosPeriodo / (PUNTO_EQUILIBRIO_CAJONES * 4)) * 100, 100)}%` }}
             />
@@ -165,20 +241,16 @@ export default function VentasClient({ ventas, ventasPeriodo, clientesExistentes
 
       {/* Tabs */}
       <div className="flex gap-1 bg-slate-100 p-1 rounded-lg w-fit">
-        <button
-          onClick={() => setVista('historial')}
+        <button onClick={() => setVista('historial')}
           className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
             vista === 'historial' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-          }`}
-        >
+          }`}>
           Historial
         </button>
-        <button
-          onClick={() => setVista('deudas')}
+        <button onClick={() => setVista('deudas')}
           className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
             vista === 'deudas' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-          }`}
-        >
+          }`}>
           Deudas por cliente
           {deudasPorCliente.length > 0 && (
             <span className="ml-1.5 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5">
@@ -188,7 +260,8 @@ export default function VentasClient({ ventas, ventasPeriodo, clientesExistentes
         </button>
       </div>
 
-      {vista === 'deudas' ? (
+      {/* Vista: Deudas por cliente */}
+      {vista === 'deudas' && (
         <div className="card overflow-hidden">
           <div className="p-5 border-b border-slate-100">
             <h3 className="font-semibold text-slate-800">Deuda por cliente</h3>
@@ -199,77 +272,69 @@ export default function VentasClient({ ventas, ventasPeriodo, clientesExistentes
                 <tr className="border-b border-slate-100 bg-slate-50">
                   <th className="table-th">Cliente</th>
                   <th className="table-th text-right">Monto pendiente</th>
-                  <th className="table-th text-right">Ventas pendientes</th>
+                  <th className="table-th text-right">Ventas</th>
+                  <th className="table-th text-right">Días deuda</th>
+                  <th className="table-th text-right">Límite crédito</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {deudasPorCliente.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="table-td text-center text-slate-400 py-10">
+                    <td colSpan={5} className="table-td text-center text-slate-400 py-10">
                       <CheckCircle className="inline-block mb-2 text-green-400" size={28} />
                       <br />No hay deudas pendientes
                     </td>
                   </tr>
                 ) : (
-                  deudasPorCliente.map(({ cliente, total }) => {
-                    const ventasCliente = ventas.filter(
-                      (v) => v.cliente === cliente && v.estado !== 'PAGO'
-                    ).length
-                    return (
-                      <tr key={cliente} className="hover:bg-slate-50">
-                        <td className="table-td font-medium">{cliente}</td>
-                        <td className="table-td text-right font-bold text-red-700">
-                          {formatearPeso(total)}
-                        </td>
-                        <td className="table-td text-right">{ventasCliente} venta{ventasCliente > 1 ? 's' : ''}</td>
-                      </tr>
-                    )
-                  })
+                  deudasPorCliente.map(({ cliente, total, cantidadVentas, diasDeuda, limiteCredito, excedeLimite }) => (
+                    <tr
+                      key={cliente}
+                      onClick={() => setCuentaCorriente(cliente)}
+                      className={`cursor-pointer hover:bg-slate-50 ${excedeLimite ? 'bg-red-50' : ''}`}
+                    >
+                      <td className="table-td font-medium">{cliente}</td>
+                      <td className={`table-td text-right font-bold ${excedeLimite ? 'text-red-700' : 'text-red-700'}`}>
+                        {formatearPeso(total)}
+                      </td>
+                      <td className="table-td text-right">{cantidadVentas}</td>
+                      <td className={`table-td text-right ${diasDeuda > 30 ? 'text-red-600 font-semibold' : 'text-slate-600'}`}>
+                        {diasDeuda} días
+                      </td>
+                      <td className="table-td text-right text-slate-500">
+                        {limiteCredito != null ? (
+                          <span className={excedeLimite ? 'text-red-600 font-semibold' : ''}>
+                            {formatearPeso(limiteCredito)}
+                            {excedeLimite && ' ⚠️'}
+                          </span>
+                        ) : '—'}
+                      </td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>
           </div>
         </div>
-      ) : (
+      )}
+
+      {/* Vista: Historial */}
+      {vista === 'historial' && (
         <div className="card overflow-hidden">
-          {/* Filtros */}
           <div className="p-5 border-b border-slate-100">
             <div className="flex flex-wrap gap-3">
-              <select
-                value={filtroEstado}
-                onChange={(e) => setFiltroEstado(e.target.value)}
-                className="input w-auto text-sm"
-              >
+              <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} className="input w-auto text-sm">
                 <option value="todos">Todos los estados</option>
                 <option value="PAGO">PAGO</option>
                 <option value="PENDIENTE">PENDIENTE</option>
                 <option value="PARCIAL">PARCIAL</option>
               </select>
-              <input
-                type="text"
-                value={filtroCliente}
-                onChange={(e) => setFiltroCliente(e.target.value)}
-                className="input w-auto text-sm"
-                placeholder="Buscar cliente..."
-              />
-              <input
-                type="date"
-                value={filtroFechaDesde}
-                onChange={(e) => setFiltroFechaDesde(e.target.value)}
-                className="input w-auto text-sm"
-              />
-              <input
-                type="date"
-                value={filtroFechaHasta}
-                onChange={(e) => setFiltroFechaHasta(e.target.value)}
-                className="input w-auto text-sm"
-              />
-              <span className="text-sm text-slate-500 self-center ml-auto">
-                {ventasFiltradas.length} registros
-              </span>
+              <input type="text" value={filtroCliente} onChange={(e) => setFiltroCliente(e.target.value)}
+                className="input w-auto text-sm" placeholder="Buscar cliente..." />
+              <input type="date" value={filtroFechaDesde} onChange={(e) => setFiltroFechaDesde(e.target.value)} className="input w-auto text-sm" />
+              <input type="date" value={filtroFechaHasta} onChange={(e) => setFiltroFechaHasta(e.target.value)} className="input w-auto text-sm" />
+              <span className="text-sm text-slate-500 self-center ml-auto">{ventasFiltradas.length} registros</span>
             </div>
           </div>
-
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -289,58 +354,41 @@ export default function VentasClient({ ventas, ventasPeriodo, clientesExistentes
               <tbody className="divide-y divide-slate-50">
                 {ventasFiltradas.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="table-td text-center text-slate-400 py-8">
-                      Sin ventas para los filtros aplicados
-                    </td>
+                    <td colSpan={10} className="table-td text-center text-slate-400 py-8">Sin ventas para los filtros aplicados</td>
                   </tr>
                 ) : (
                   ventasFiltradas.map((v) => (
                     <tr key={v.id} className="hover:bg-slate-50">
                       <td className="table-td whitespace-nowrap">{formatearFecha(v.fecha)}</td>
                       <td className="table-td font-medium">{v.cliente}</td>
-                      <td className="table-td text-xs">{v.tipo_venta}</td>
+                      <td className="table-td text-xs">
+                        {v.tipo_venta}
+                        {v.precio_modificado && (
+                          <span className="ml-1 text-amber-500" title={`Motivo: ${v.motivo_precio}`}>★</span>
+                        )}
+                      </td>
                       <td className="table-td text-right">{v.cantidad}</td>
                       <td className="table-td text-right">{v.equivalente_huevos.toLocaleString()}</td>
-                      <td className="table-td">
-                        <EstadoBadge estado={v.estado} />
-                      </td>
+                      <td className="table-td"><EstadoBadge estado={v.estado} /></td>
                       <td className="table-td text-xs text-slate-500">{v.metodo_pago ?? '—'}</td>
+                      <td className="table-td text-right">{v.monto_cobrado > 0 ? formatearPeso(v.monto_cobrado) : '—'}</td>
                       <td className="table-td text-right">
-                        {v.monto_cobrado > 0 ? formatearPeso(v.monto_cobrado) : '—'}
-                      </td>
-                      <td className="table-td text-right">
-                        {v.monto_debe > 0 ? (
-                          <span className="text-red-700 font-semibold">{formatearPeso(v.monto_debe)}</span>
-                        ) : (
-                          <span className="text-slate-400">—</span>
-                        )}
+                        {v.monto_debe > 0
+                          ? <span className="text-red-700 font-semibold">{formatearPeso(v.monto_debe)}</span>
+                          : <span className="text-slate-400">—</span>}
                       </td>
                       <td className="table-td">
                         <div className="flex items-center gap-2">
                           {v.estado !== 'PAGO' && (
-                            <button
-                              onClick={() => abrirPagoModal(v)}
-                              disabled={markingPago === v.id}
-                              title="Registrar pago"
-                              className="text-green-600 hover:text-green-800 transition-colors disabled:opacity-50"
-                            >
+                            <button onClick={() => abrirPagoModal(v)} disabled={markingPago === v.id}
+                              title="Registrar pago" className="text-green-600 hover:text-green-800 transition-colors disabled:opacity-50">
                               <CheckCircle size={16} />
                             </button>
                           )}
-                          <button
-                            onClick={() => handleEditar(v)}
-                            title="Editar"
-                            className="text-slate-400 hover:text-blue-600 transition-colors"
-                          >
-                            <Edit size={16} />
-                          </button>
-                          <button
-                            onClick={() => handleEliminar(v.id)}
-                            title="Eliminar"
-                            className="text-slate-400 hover:text-red-600 transition-colors"
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                          <button onClick={() => handleEditar(v)} title="Editar"
+                            className="text-slate-400 hover:text-blue-600 transition-colors"><Edit size={16} /></button>
+                          <button onClick={() => handleEliminar(v.id)} title="Eliminar"
+                            className="text-slate-400 hover:text-red-600 transition-colors"><Trash2 size={16} /></button>
                         </div>
                       </td>
                     </tr>
@@ -352,14 +400,18 @@ export default function VentasClient({ ventas, ventasPeriodo, clientesExistentes
         </div>
       )}
 
+      {/* Modal nueva venta */}
       {modalOpen && (
         <NuevaVentaModal
           clientesExistentes={clientesExistentes}
           ventaEditar={ventaEditar}
           onClose={() => { setModalOpen(false); setVentaEditar(undefined) }}
+          productos={productos}
+          preciosEspeciales={preciosEspeciales}
         />
       )}
 
+      {/* Modal pago */}
       {pagoModal && (
         <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setPagoModal(null)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
@@ -369,32 +421,28 @@ export default function VentasClient({ ventas, ventasPeriodo, clientesExistentes
             </p>
             <div className="mb-4">
               <label className="label">Monto cobrado ahora ($)</label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={montoPago}
+              <input type="number" min="0" step="0.01" value={montoPago}
                 onChange={(e) => setMontoPago(e.target.value)}
-                className="input"
-                placeholder="0"
-                autoFocus
-              />
+                className="input" placeholder="0" autoFocus />
               {pagoModal.monto_cobrado > 0 && (
-                <p className="text-xs text-slate-500 mt-1">
-                  Ya cobrado anteriormente: {formatearPeso(pagoModal.monto_cobrado)}
-                </p>
+                <p className="text-xs text-slate-500 mt-1">Ya cobrado: {formatearPeso(pagoModal.monto_cobrado)}</p>
               )}
             </div>
             <div className="flex gap-3">
-              <button onClick={() => setPagoModal(null)} className="btn-secondary flex-1">
-                Cancelar
-              </button>
-              <button onClick={confirmarPago} className="btn-success flex-1">
-                Confirmar pago
-              </button>
+              <button onClick={() => setPagoModal(null)} className="btn-secondary flex-1">Cancelar</button>
+              <button onClick={confirmarPago} className="btn-success flex-1">Confirmar pago</button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal cuenta corriente */}
+      {cuentaCorriente && (
+        <CuentaCorrienteModal
+          cliente={cuentaCorriente}
+          ventas={ventas}
+          onClose={() => setCuentaCorriente(null)}
+        />
       )}
     </div>
   )
