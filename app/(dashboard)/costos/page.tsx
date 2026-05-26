@@ -1,130 +1,249 @@
 import { createClient } from '@/lib/supabase/server'
 import CostosClient from './CostosClient'
-import { getPeriodoActual, getUltimosPeriodos } from '@/lib/utils'
+import { getPeriodoInfo, getPeriodoAnterior, hoyISO } from '@/lib/utils'
+import type { HistoricoCostoPeriodo } from '@/types'
 
-export default async function CostosPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ periodo?: string }>
-}) {
+const CONFIG_DEFAULT = {
+  id: '',
+  costo_recria_por_ave: 0,
+  vida_util_semanas: 75,
+  precio_kg_alimento: 0,
+  consumo_coloradas_g_dia: 120,
+  consumo_blancas_g_dia: 113,
+  sueldos_mensuales: 0,
+  maples_mensuales: 0,
+  otros_gastos_mensuales: 0,
+  postura_esperada_pct: 70,
+  updated_at: '',
+}
+
+// Categorías que NO forman parte de "otros" operativos en caja
+const EXCLUIR_OTROS = new Set(['Sueldos', 'Maples', 'Alimento', 'Compra-venta mercado', 'Compra USD', 'Pago inversión'])
+
+export default async function CostosPage() {
   const supabase = await createClient()
-  const { periodo: periodoParam } = await searchParams
-  const periodos = getUltimosPeriodos(6)
-  const periodoActual = getPeriodoActual()
 
-  const periodoEncontrado = periodoParam ? periodos.find((p) => p.inicio === periodoParam) : undefined
-  const inicio = periodoEncontrado?.inicio ?? periodoActual.inicio
-  const fin = periodoEncontrado?.fin ?? periodoActual.fin
-  const label = periodoEncontrado?.label ?? periodoActual.label
+  // Config primero (necesaria para auto-cierre)
+  const { data: configRaw } = await supabase.from('config_costos').select('*').limit(1).single()
+  const config = { ...CONFIG_DEFAULT, ...(configRaw ?? {}) }
 
+  const periodoInfo = getPeriodoInfo()
+  const periodoAnterior = getPeriodoAnterior()
+  const hoy = hoyISO()
+
+  // Queries paralelas
   const [
-    { data: egresosRaw },
-    { data: produccionRaw },
     { data: gallinasRaw },
-    { data: configRaw },
-    { data: productos },
-    { data: ventasRaw },
     { data: galponesRaw },
+    { data: historicoRaw },
+    { data: prodActualRaw },
+    { data: comprasAlimentoActualRaw },
+    { data: ventasActualRaw },
+    { data: productos },
   ] = await Promise.all([
+    supabase.from('gallinas_actuales').select('galpon_id, gallinas_actuales'),
+    supabase.from('galpones').select('id, tipo'),
     supabase
-      .from('caja')
-      .select('categoria, monto')
-      .eq('tipo', 'EGRESO')
-      .gte('fecha', inicio)
-      .lte('fecha', fin),
+      .from('historico_costos_periodo')
+      .select('*')
+      .eq('periodo_inicio', periodoAnterior.inicio)
+      .maybeSingle(),
     supabase
       .from('produccion_diaria')
       .select('huevos')
-      .gte('fecha', inicio)
-      .lte('fecha', fin),
-    supabase.from('gallinas_actuales').select('galpon_id, gallinas_actuales'),
-    supabase.from('config_costos').select('*').limit(1).single(),
-    supabase.from('productos').select('id, codigo, nombre, precio_mayorista, precio_minorista, unidades_por_caja').eq('activo', true).order('codigo'),
+      .gte('fecha', periodoInfo.inicio)
+      .lte('fecha', hoy),
+    supabase
+      .from('compras_proveedor')
+      .select('kg_alimento, proveedor:proveedores(tipo)')
+      .gte('fecha', periodoInfo.inicio)
+      .lte('fecha', hoy),
     supabase
       .from('ventas')
-      .select('tipo_venta, cantidad, monto_cobrado, equivalente_huevos')
-      .gte('fecha', inicio)
-      .lte('fecha', fin)
+      .select('tipo_venta, monto_cobrado, equivalente_huevos')
+      .gte('fecha', periodoInfo.inicio)
+      .lte('fecha', hoy)
       .neq('estado', 'PENDIENTE'),
-    supabase.from('galpones').select('id, tipo'),
+    supabase
+      .from('productos')
+      .select('id, codigo, nombre, precio_mayorista, precio_minorista, unidades_por_caja')
+      .eq('activo', true)
+      .order('codigo'),
   ])
 
-  // Egresos por categoría
-  const egresos = egresosRaw ?? []
-  const sumaCat = (cat: string) => egresos.filter((e: any) => e.categoria === cat).reduce((s: number, e: any) => s + e.monto, 0)
-
-  // Producción total
-  const huevosTotales = (produccionRaw ?? []).reduce((s: number, p: any) => s + p.huevos, 0)
-
-  // Gallinas por tipo (blancas vs coloradas)
+  // Gallinas por tipo
   const galpones = galponesRaw ?? []
   const gallinasData = gallinasRaw ?? []
-
   const gallonasPorTipo = galpones.reduce(
     (acc: { blancas: number; coloradas: number }, g: any) => {
-      const gallinasGalpon = gallinasData
+      const total = gallinasData
         .filter((ga: any) => ga.galpon_id === g.id)
         .reduce((s: number, ga: any) => s + (ga.gallinas_actuales ?? 0), 0)
-      if (g.tipo === 'blancas') acc.blancas += gallinasGalpon
-      else if (g.tipo === 'coloradas') acc.coloradas += gallinasGalpon
+      if (g.tipo === 'blancas') acc.blancas += total
+      else if (g.tipo === 'coloradas') acc.coloradas += total
       return acc
     },
     { blancas: 0, coloradas: 0 }
   )
+  const gallinasBlancas = gallonasPorTipo.blancas
+  const gallinasColoradas = gallonasPorTipo.coloradas
+  const gallinasActivas = gallinasBlancas + gallinasColoradas
 
-  const gallinasActivas = gallonasPorTipo.blancas + gallonasPorTipo.coloradas
+  // Consumo diario de alimento (kg)
+  const alimentoDiarioKg =
+    (gallinasColoradas * config.consumo_coloradas_g_dia) / 1000 +
+    (gallinasBlancas * config.consumo_blancas_g_dia) / 1000
 
-  // Config
-  const config = configRaw ?? { costo_recria_por_ave: 3000, vida_util_semanas: 75, precio_kg_alimento: 0 }
+  // Auto-cierre del período anterior si no está en historico
+  let historico: HistoricoCostoPeriodo | null = historicoRaw ?? null
 
-  // Días del período
-  const diasPeriodo = Math.round((new Date(fin).getTime() - new Date(inicio).getTime()) / (1000 * 60 * 60 * 24)) + 1
-  const semanasPeriodo = diasPeriodo / 7
+  if (!historico) {
+    const [{ data: cajasAnt }, { data: comprasAnt }, { data: prodAnt }] = await Promise.all([
+      supabase
+        .from('caja')
+        .select('categoria, monto')
+        .eq('tipo', 'EGRESO')
+        .gte('fecha', periodoAnterior.inicio)
+        .lte('fecha', periodoAnterior.fin),
+      supabase
+        .from('compras_proveedor')
+        .select('total, proveedor:proveedores(tipo)')
+        .gte('fecha', periodoAnterior.inicio)
+        .lte('fecha', periodoAnterior.fin),
+      supabase
+        .from('produccion_diaria')
+        .select('huevos')
+        .gte('fecha', periodoAnterior.inicio)
+        .lte('fecha', periodoAnterior.fin),
+    ])
 
-  // Consumo estimado (kg): blancas 115g/día, coloradas 120g/día
-  const kgEstimadosBlancas = gallonasPorTipo.blancas * 0.115 * diasPeriodo
-  const kgEstimadosColoradas = gallonasPorTipo.coloradas * 0.120 * diasPeriodo
-  const kgEstimados = kgEstimadosBlancas + kgEstimadosColoradas
+    const cajonesReales = (prodAnt ?? []).reduce((s: number, p: any) => s + p.huevos, 0) / 360
 
-  // Costo de alimento por consumo (Opción A)
-  const alimentoConsumo = kgEstimados * (config.precio_kg_alimento ?? 0)
+    if (cajonesReales > 0) {
+      const diasAnt =
+        Math.round(
+          (new Date(periodoAnterior.fin).getTime() - new Date(periodoAnterior.inicio).getTime()) /
+            (1000 * 60 * 60 * 24)
+        ) + 1
 
-  // Amortización aves
-  const amortizacionAves =
-    gallinasActivas * (config.costo_recria_por_ave / config.vida_util_semanas) * semanasPeriodo
+      const alimento_real = (comprasAnt ?? [])
+        .filter((c: any) => c.proveedor?.tipo === 'alimento')
+        .reduce((s: number, c: any) => s + (c.total ?? 0), 0)
 
-  // Ventas por tipo para precio promedio
+      const egresos = cajasAnt ?? []
+      const sumCat = (cat: string) =>
+        egresos.filter((e: any) => e.categoria === cat).reduce((s: number, e: any) => s + (e.monto ?? 0), 0)
+      const sueldos_real = sumCat('Sueldos')
+      const maples_real = sumCat('Maples')
+      const otros_real = egresos
+        .filter((e: any) => !EXCLUIR_OTROS.has(e.categoria))
+        .reduce((s: number, e: any) => s + (e.monto ?? 0), 0)
+      const amortizacion_real =
+        gallinasActivas * (config.costo_recria_por_ave / (config.vida_util_semanas * 7)) * diasAnt
+      const costo_total = alimento_real + sueldos_real + maples_real + otros_real + amortizacion_real
+
+      const payload = {
+        periodo_inicio: periodoAnterior.inicio,
+        periodo_fin: periodoAnterior.fin,
+        dias_periodo: diasAnt,
+        gallinas_promedio: gallinasActivas,
+        alimento_real,
+        sueldos_real,
+        maples_real,
+        otros_real,
+        amortizacion_real,
+        costo_total,
+        cajones_reales: cajonesReales,
+        costo_por_cajon: costo_total / cajonesReales,
+      }
+
+      const { data: insertado } = await supabase
+        .from('historico_costos_periodo')
+        .insert(payload)
+        .select()
+        .single()
+
+      historico = insertado
+    }
+  }
+
+  // ── Modo 1: Estándar ──────────────────────────────────────────────────────
+  const alimentoEstandar = alimentoDiarioKg * 30 * config.precio_kg_alimento
+  const amortizacionEstandar =
+    gallinasActivas * (config.costo_recria_por_ave / (config.vida_util_semanas * 7)) * 30
+  const costoTotalEstandar =
+    alimentoEstandar +
+    amortizacionEstandar +
+    config.sueldos_mensuales +
+    config.maples_mensuales +
+    config.otros_gastos_mensuales
+  const cajonesEsperados =
+    gallinasActivas > 0
+      ? (gallinasActivas * (config.postura_esperada_pct / 100) * 30) / 360
+      : 0
+
+  // ── Modo 3: Running ───────────────────────────────────────────────────────
+  const N = periodoInfo.diaActual
+  const diasTotales = periodoInfo.diasTotales
+  const alimentoRunning = alimentoDiarioKg * N * config.precio_kg_alimento
+  const sueldosRunning = config.sueldos_mensuales * (N / diasTotales)
+  const maplesRunning = config.maples_mensuales * (N / diasTotales)
+  const otrosRunning = config.otros_gastos_mensuales * (N / diasTotales)
+  const amortizacionRunning =
+    gallinasActivas * (config.costo_recria_por_ave / (config.vida_util_semanas * 7)) * N
+  const costoTotalRunning = alimentoRunning + sueldosRunning + maplesRunning + otrosRunning + amortizacionRunning
+  const cajonesProducidos = (prodActualRaw ?? []).reduce((s: number, p: any) => s + p.huevos, 0) / 360
+
+  // Alerta alimento: kg comprados vs estimado en el período actual
+  const kgCompradosActual = (comprasAlimentoActualRaw ?? [])
+    .filter((c: any) => c.proveedor?.tipo === 'alimento')
+    .reduce((s: number, c: any) => s + (c.kg_alimento ?? 0), 0)
+  const kgEstimadoActual = alimentoDiarioKg * N
+
+  // Ventas por tipo para margen SKU
   const ventasPorTipo: Record<string, { monto: number; huevos: number }> = {}
-  for (const v of ventasRaw ?? []) {
+  for (const v of ventasActualRaw ?? []) {
     if (!ventasPorTipo[v.tipo_venta]) ventasPorTipo[v.tipo_venta] = { monto: 0, huevos: 0 }
     ventasPorTipo[v.tipo_venta].monto += v.monto_cobrado ?? 0
     ventasPorTipo[v.tipo_venta].huevos += v.equivalente_huevos ?? 0
   }
 
+  const configCompleta = config.precio_kg_alimento > 0
+
   return (
     <CostosClient
-      periodos={periodos}
-      periodoInicio={inicio}
-      periodoLabel={label}
-      alimentoConsumo={alimentoConsumo}
-      kgEstimados={kgEstimados}
-      kgEstimadosBlancas={kgEstimadosBlancas}
-      kgEstimadosColoradas={kgEstimadosColoradas}
-      gallinasBlancas={gallonasPorTipo.blancas}
-      gallinasColoradas={gallonasPorTipo.coloradas}
-      sueldos={sumaCat('Sueldos')}
-      maples={sumaCat('Maples')}
-      mantenimiento={sumaCat('Mantenimiento')}
-      combustible={sumaCat('Combustible')}
-      gastosGenerales={sumaCat('Gastos generales')}
-      sanidad={sumaCat('Sanidad') + sumaCat('Medicación')}
-      amortizacionAves={amortizacionAves}
-      huevosTotales={huevosTotales}
-      gallinasActivas={gallinasActivas}
-      diasPeriodo={diasPeriodo}
-      productos={productos ?? []}
-      ventasPorTipo={ventasPorTipo}
+      periodoInfo={{ inicio: periodoInfo.inicio, fin: periodoInfo.fin, label: periodoInfo.label, diaActual: N, diasTotales }}
+      periodoAnterior={periodoAnterior}
       config={config}
+      configCompleta={configCompleta}
+      gallinasBlancas={gallinasBlancas}
+      gallinasColoradas={gallinasColoradas}
+      gallinasActivas={gallinasActivas}
+      estandar={{
+        alimento: alimentoEstandar,
+        amortizacion: amortizacionEstandar,
+        sueldos: config.sueldos_mensuales,
+        maples: config.maples_mensuales,
+        otros: config.otros_gastos_mensuales,
+        costoTotal: costoTotalEstandar,
+        cajonesEsperados,
+        costoPorCajon: cajonesEsperados > 0 ? costoTotalEstandar / cajonesEsperados : 0,
+      }}
+      historico={historico}
+      running={{
+        alimento: alimentoRunning,
+        sueldos: sueldosRunning,
+        maples: maplesRunning,
+        otros: otrosRunning,
+        amortizacion: amortizacionRunning,
+        costoTotal: costoTotalRunning,
+        cajonesProducidos,
+        costoPorCajon: cajonesProducidos > 0 ? costoTotalRunning / cajonesProducidos : 0,
+      }}
+      kgCompradosActual={kgCompradosActual}
+      kgEstimadoActual={kgEstimadoActual}
+      ventasPorTipo={ventasPorTipo}
+      productos={productos ?? []}
     />
   )
 }

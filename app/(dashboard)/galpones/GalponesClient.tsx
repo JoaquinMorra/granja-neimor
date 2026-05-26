@@ -5,11 +5,13 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Galpon, LoteConCalculos } from '@/types'
 import { getPosturaEsperada, calcularEdadSemanas } from '@/lib/utils'
-import { Plus, X, Edit, Trash2, Building2, Egg } from 'lucide-react'
+import { Plus, X, Edit, Building2 } from 'lucide-react'
 
 type Props = {
   galpones: Galpon[]
   lotes: LoteConCalculos[]
+  consumoColoradasGDia: number
+  consumoBlancasGDia: number
 }
 
 type LoteFormData = {
@@ -144,7 +146,7 @@ function LoteModal({
   )
 }
 
-export default function GalponesClient({ galpones, lotes }: Props) {
+export default function GalponesClient({ galpones, lotes, consumoColoradasGDia, consumoBlancasGDia }: Props) {
   const router = useRouter()
   const [modalOpen, setModalOpen] = useState(false)
   const [editingLote, setEditingLote] = useState<LoteConCalculos | undefined>()
@@ -168,11 +170,19 @@ export default function GalponesClient({ galpones, lotes }: Props) {
     router.refresh()
   }
 
-  // Consumo estimado de alimento
-  const totalGallinasActivas = lotes
-    .filter((l) => l.activo)
+  // Consumo diferenciado por tipo
+  const lotesActivos = lotes.filter((l) => l.activo)
+  const gallinasColoradas = lotesActivos
+    .filter((l) => (l.galpon as any)?.tipo === 'coloradas')
     .reduce((s, l) => s + l.gallinas_actuales, 0)
-  const consumoAlimentoDiario = totalGallinasActivas * 0.13
+  const gallinasBlancas = lotesActivos
+    .filter((l) => (l.galpon as any)?.tipo === 'blancas')
+    .reduce((s, l) => s + l.gallinas_actuales, 0)
+  const totalGallinasActivas = gallinasColoradas + gallinasBlancas
+
+  const consumoColoradasDia = gallinasColoradas * consumoColoradasGDia / 1000
+  const consumoBlancasDia = gallinasBlancas * consumoBlancasGDia / 1000
+  const consumoTotalDia = consumoColoradasDia + consumoBlancasDia
 
   return (
     <div className="space-y-6">
@@ -184,20 +194,42 @@ export default function GalponesClient({ galpones, lotes }: Props) {
         </div>
       </div>
 
-      {/* Consumo estimado */}
-      <div className="card p-4 flex flex-wrap gap-6">
-        <div>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total gallinas activas</p>
-          <p className="text-2xl font-bold text-slate-800 mt-1">{totalGallinasActivas.toLocaleString('es-AR')}</p>
+      {/* Resumen de consumo */}
+      <div className="card p-5 space-y-4">
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total gallinas activas</p>
+            <p className="text-2xl font-bold text-slate-800 mt-1">{totalGallinasActivas.toLocaleString('es-AR')}</p>
+            <p className="text-xs text-slate-400 mt-0.5">{galpones.length} galpones</p>
+          </div>
+          {gallinasColoradas > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Consumo coloradas</p>
+              <p className="text-2xl font-bold text-orange-700 mt-1">{consumoColoradasDia.toFixed(0)} kg/día</p>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {gallinasColoradas.toLocaleString('es-AR')} gallinas @ {consumoColoradasGDia}g
+              </p>
+            </div>
+          )}
+          {gallinasBlancas > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Consumo blancas</p>
+              <p className="text-2xl font-bold text-blue-700 mt-1">{consumoBlancasDia.toFixed(0)} kg/día</p>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {gallinasBlancas.toLocaleString('es-AR')} gallinas @ {consumoBlancasGDia}g
+              </p>
+            </div>
+          )}
         </div>
-        <div>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Consumo alimento estimado / día</p>
-          <p className="text-2xl font-bold text-amber-700 mt-1">{consumoAlimentoDiario.toFixed(0)} kg</p>
-          <p className="text-xs text-slate-400 mt-0.5">@ 0.13 kg/gallina/día</p>
-        </div>
-        <div>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Consumo alimento estimado / mes</p>
-          <p className="text-2xl font-bold text-amber-700 mt-1">{(consumoAlimentoDiario * 30).toFixed(0)} kg</p>
+        <div className="border-t border-slate-100 pt-4 flex gap-8">
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Consumo total / día</p>
+            <p className="text-xl font-bold text-amber-700 mt-0.5">{consumoTotalDia.toFixed(0)} kg</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Consumo total / mes</p>
+            <p className="text-xl font-bold text-amber-700 mt-0.5">{(consumoTotalDia * 30).toFixed(0)} kg</p>
+          </div>
         </div>
       </div>
 
@@ -205,9 +237,10 @@ export default function GalponesClient({ galpones, lotes }: Props) {
       <div className="space-y-6">
         {galpones.map((galpon) => {
           const lotesGalpon = lotes.filter((l) => l.galpon_id === galpon.id)
-          const lotesActivos = lotesGalpon.filter((l) => l.activo)
-          const totalGallinas = lotesActivos.reduce((s, l) => s + l.gallinas_actuales, 0)
-          const totalMuertes = lotesActivos.reduce((s, l) => s + l.total_muertes, 0)
+          const lotesActivosGalpon = lotesGalpon.filter((l) => l.activo)
+          const totalGallinas = lotesActivosGalpon.reduce((s, l) => s + l.gallinas_actuales, 0)
+          const totalMuertes = lotesActivosGalpon.reduce((s, l) => s + l.total_muertes, 0)
+          const consumoGalponDia = totalGallinas * (galpon.tipo === 'coloradas' ? consumoColoradasGDia : consumoBlancasGDia) / 1000
 
           return (
             <div key={galpon.id} className="card overflow-hidden">
@@ -225,7 +258,7 @@ export default function GalponesClient({ galpones, lotes }: Props) {
                 <div className="flex items-center gap-4">
                   <div className="text-right hidden sm:block">
                     <p className="text-sm font-bold text-slate-800">{totalGallinas.toLocaleString()} gallinas</p>
-                    <p className="text-xs text-slate-500">{totalMuertes} muertes acumuladas</p>
+                    <p className="text-xs text-slate-500">{totalMuertes} muertes · {consumoGalponDia.toFixed(0)} kg/día</p>
                   </div>
                   <button
                     onClick={() => openNuevoLote(galpon.id)}
@@ -325,12 +358,12 @@ export default function GalponesClient({ galpones, lotes }: Props) {
                       })
                     )}
                   </tbody>
-                  {lotesActivos.length > 0 && (
+                  {lotesActivosGalpon.length > 0 && (
                     <tfoot>
                       <tr className="bg-slate-50 border-t border-slate-200">
                         <td className="table-td font-bold text-slate-700">Total activos</td>
                         <td className="table-td text-right font-bold">
-                          {lotesActivos.reduce((s, l) => s + l.gallinas_inicial, 0).toLocaleString()}
+                          {lotesActivosGalpon.reduce((s, l) => s + l.gallinas_inicial, 0).toLocaleString()}
                         </td>
                         <td className="table-td text-right font-bold text-red-700">
                           {totalMuertes}

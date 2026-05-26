@@ -170,7 +170,30 @@ export type ConfigCostos = {
   costo_recria_por_ave: number
   vida_util_semanas: number
   precio_kg_alimento: number
+  consumo_coloradas_g_dia: number
+  consumo_blancas_g_dia: number
+  sueldos_mensuales: number
+  maples_mensuales: number
+  otros_gastos_mensuales: number
+  postura_esperada_pct: number
   updated_at: string
+}
+
+export type HistoricoCostoPeriodo = {
+  id: string
+  periodo_inicio: string
+  periodo_fin: string
+  dias_periodo: number
+  gallinas_promedio: number
+  alimento_real: number
+  sueldos_real: number
+  maples_real: number
+  otros_real: number
+  amortizacion_real: number
+  costo_total: number
+  cajones_reales: number
+  costo_por_cajon: number
+  created_at: string
 }
 
 export type ClienteConfig = {

@@ -5,26 +5,39 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import type { ConfigCostos } from '@/types'
-import { formatearPeso } from '@/lib/utils'
+import { formatearPeso, formatearFechaCorta } from '@/lib/utils'
 import { ArrowLeft, Save } from 'lucide-react'
 
-type Props = { config: ConfigCostos }
+type Props = {
+  config: ConfigCostos
+  precioSugerido: number | null
+  fechaUltimaCompra: string | null
+}
 
-export default function ConfiguracionClient({ config }: Props) {
+export default function ConfiguracionClient({ config, precioSugerido, fechaUltimaCompra }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [form, setForm] = useState({
-    costo_recria_por_ave: config.costo_recria_por_ave.toString(),
-    vida_util_semanas: config.vida_util_semanas.toString(),
-    precio_kg_alimento: config.precio_kg_alimento?.toString() ?? '0',
+    precio_kg_alimento:      (config.precio_kg_alimento ?? 0).toString(),
+    consumo_coloradas_g_dia: (config.consumo_coloradas_g_dia ?? 120).toString(),
+    consumo_blancas_g_dia:   (config.consumo_blancas_g_dia ?? 113).toString(),
+    sueldos_mensuales:       (config.sueldos_mensuales ?? 0).toString(),
+    maples_mensuales:        (config.maples_mensuales ?? 0).toString(),
+    otros_gastos_mensuales:  (config.otros_gastos_mensuales ?? 0).toString(),
+    postura_esperada_pct:    (config.postura_esperada_pct ?? 70).toString(),
+    costo_recria_por_ave:    (config.costo_recria_por_ave ?? 0).toString(),
+    vida_util_semanas:       (config.vida_util_semanas ?? 75).toString(),
   })
 
-  const amortizacionPorSemana =
-    parseFloat(form.costo_recria_por_ave || '0') / parseFloat(form.vida_util_semanas || '1')
+  const f = (key: keyof typeof form) => parseFloat(form[key] || '0')
+  const amortizacionPorSemana = f('costo_recria_por_ave') / (f('vida_util_semanas') || 1)
+  const alimentoDiarioKg = (f('consumo_coloradas_g_dia') + f('consumo_blancas_g_dia')) / 1000
 
-  const precioKg = parseFloat(form.precio_kg_alimento || '0')
+  function set(key: keyof typeof form, value: string) {
+    setForm((p) => ({ ...p, [key]: value }))
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -33,10 +46,16 @@ export default function ConfiguracionClient({ config }: Props) {
     const supabase = createClient()
 
     const payload = {
-      costo_recria_por_ave: parseFloat(form.costo_recria_por_ave),
-      vida_util_semanas: parseInt(form.vida_util_semanas),
-      precio_kg_alimento: precioKg,
-      updated_at: new Date().toISOString(),
+      precio_kg_alimento:      f('precio_kg_alimento'),
+      consumo_coloradas_g_dia: f('consumo_coloradas_g_dia'),
+      consumo_blancas_g_dia:   f('consumo_blancas_g_dia'),
+      sueldos_mensuales:       f('sueldos_mensuales'),
+      maples_mensuales:        f('maples_mensuales'),
+      otros_gastos_mensuales:  f('otros_gastos_mensuales'),
+      postura_esperada_pct:    f('postura_esperada_pct'),
+      costo_recria_por_ave:    f('costo_recria_por_ave'),
+      vida_util_semanas:       parseInt(form.vida_util_semanas),
+      updated_at:              new Date().toISOString(),
     }
 
     const { error: err } = config.id
@@ -47,10 +66,7 @@ export default function ConfiguracionClient({ config }: Props) {
 
     setSaved(true)
     setLoading(false)
-    setTimeout(() => {
-      router.push('/costos')
-      router.refresh()
-    }, 1200)
+    setTimeout(() => { router.push('/costos'); router.refresh() }, 1200)
   }
 
   return (
@@ -66,65 +82,120 @@ export default function ConfiguracionClient({ config }: Props) {
       <h1 className="text-2xl font-bold text-slate-900">Configuración de costos</h1>
 
       <div className="card p-6">
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-6">
 
-          {/* Precio alimento */}
+          {/* Sección: Alimento */}
           <div>
-            <label className="label">Precio del alimento ($/kg)</label>
-            <input type="number" min="0" step="any"
-              value={form.precio_kg_alimento}
-              onChange={(e) => setForm((p) => ({ ...p, precio_kg_alimento: e.target.value }))}
-              className="input" required />
-            <p className="text-xs text-slate-500 mt-1">
-              Precio actual del kg de alimento balanceado. Se usa para calcular el costo de alimento por consumo estimado.
-            </p>
-          </div>
-
-          <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
-            <p className="text-sm font-medium text-amber-800 mb-1">Consumo de referencia</p>
-            <p className="text-xs text-amber-700">Blancas: 115 g/gallina/día · Coloradas: 120 g/gallina/día</p>
-            {precioKg > 0 && (
-              <div className="mt-2 space-y-0.5">
-                <p className="text-xs text-amber-800">
-                  Blancas: {formatearPeso(0.115 * precioKg)}/gallina/día
-                </p>
-                <p className="text-xs text-amber-800">
-                  Coloradas: {formatearPeso(0.120 * precioKg)}/gallina/día
-                </p>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Alimento</p>
+            <div className="space-y-4">
+              <div>
+                <label className="label">Precio del alimento ($/kg)</label>
+                <input type="number" min="0" step="any" value={form.precio_kg_alimento}
+                  onChange={(e) => set('precio_kg_alimento', e.target.value)}
+                  className="input" required />
+                {precioSugerido && fechaUltimaCompra && (
+                  <p className="text-xs text-slate-400 mt-1">
+                    Última compra registrada ({formatearFechaCorta(fechaUltimaCompra)}):
+                    {' '}{formatearPeso(precioSugerido)}/kg —{' '}
+                    <button
+                      type="button"
+                      onClick={() => set('precio_kg_alimento', precioSugerido.toString())}
+                      className="text-blue-600 hover:underline"
+                    >
+                      usar este valor
+                    </button>
+                  </p>
+                )}
               </div>
-            )}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Consumo coloradas (g/día)</label>
+                  <input type="number" min="0" step="0.1" value={form.consumo_coloradas_g_dia}
+                    onChange={(e) => set('consumo_coloradas_g_dia', e.target.value)}
+                    className="input" required />
+                </div>
+                <div>
+                  <label className="label">Consumo blancas (g/día)</label>
+                  <input type="number" min="0" step="0.1" value={form.consumo_blancas_g_dia}
+                    onChange={(e) => set('consumo_blancas_g_dia', e.target.value)}
+                    className="input" required />
+                </div>
+              </div>
+            </div>
           </div>
 
           <hr className="border-slate-100" />
 
-          {/* Amortización aves */}
+          {/* Sección: Presupuesto mensual */}
           <div>
-            <label className="label">Costo de recría por ave ($)</label>
-            <input type="number" min="0" step="any"
-              value={form.costo_recria_por_ave}
-              onChange={(e) => setForm((p) => ({ ...p, costo_recria_por_ave: e.target.value }))}
-              className="input" required />
-            <p className="text-xs text-slate-500 mt-1">
-              Lo que cuesta producir una pollita lista para postura
-            </p>
-          </div>
-          <div>
-            <label className="label">Vida útil del ave (semanas)</label>
-            <input type="number" min="1" step="1"
-              value={form.vida_util_semanas}
-              onChange={(e) => setForm((p) => ({ ...p, vida_util_semanas: e.target.value }))}
-              className="input" required />
-            <p className="text-xs text-slate-500 mt-1">
-              Semanas de postura activa. Ej: 75 semanas
-            </p>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Presupuesto mensual</p>
+            <div className="space-y-4">
+              <div>
+                <label className="label">Sueldos ($)</label>
+                <input type="number" min="0" step="any" value={form.sueldos_mensuales}
+                  onChange={(e) => set('sueldos_mensuales', e.target.value)}
+                  className="input" />
+              </div>
+              <div>
+                <label className="label">Maples ($)</label>
+                <input type="number" min="0" step="any" value={form.maples_mensuales}
+                  onChange={(e) => set('maples_mensuales', e.target.value)}
+                  className="input" />
+              </div>
+              <div>
+                <label className="label">Otros gastos ($)</label>
+                <input type="number" min="0" step="any" value={form.otros_gastos_mensuales}
+                  onChange={(e) => set('otros_gastos_mensuales', e.target.value)}
+                  className="input" />
+                <p className="text-xs text-slate-400 mt-1">Combustible, mantenimiento, peaje, ferretería, etc.</p>
+              </div>
+            </div>
           </div>
 
-          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
-            <p className="text-sm font-medium text-blue-800 mb-1">Amortización por gallina/semana</p>
-            <p className="text-2xl font-bold text-blue-900">{formatearPeso(amortizacionPorSemana)}</p>
-            <p className="text-xs text-blue-600 mt-1">
-              = ${parseFloat(form.costo_recria_por_ave || '0').toLocaleString('es-AR')} ÷ {form.vida_util_semanas} semanas
-            </p>
+          <hr className="border-slate-100" />
+
+          {/* Sección: Producción esperada */}
+          <div>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Producción esperada</p>
+            <div>
+              <label className="label">% Postura esperada del plantel</label>
+              <input type="number" min="1" max="100" step="0.1" value={form.postura_esperada_pct}
+                onChange={(e) => set('postura_esperada_pct', e.target.value)}
+                className="input" required />
+              <p className="text-xs text-slate-400 mt-1">Usado para calcular cajones esperados en el costo estándar</p>
+            </div>
+          </div>
+
+          <hr className="border-slate-100" />
+
+          {/* Sección: Amortización aves */}
+          <div>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Amortización de aves</p>
+            <div className="space-y-4">
+              <div>
+                <label className="label">Costo de recría por ave ($)</label>
+                <input type="number" min="0" step="any" value={form.costo_recria_por_ave}
+                  onChange={(e) => set('costo_recria_por_ave', e.target.value)}
+                  className="input" />
+                <p className="text-xs text-slate-400 mt-1">Lo que cuesta producir una pollita lista para postura</p>
+              </div>
+              <div>
+                <label className="label">Vida útil en postura (semanas)</label>
+                <input type="number" min="1" step="1" value={form.vida_util_semanas}
+                  onChange={(e) => set('vida_util_semanas', e.target.value)}
+                  className="input" />
+              </div>
+            </div>
+
+            {amortizacionPorSemana > 0 && (
+              <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mt-4">
+                <p className="text-sm font-medium text-blue-800 mb-1">Amortización por gallina/semana</p>
+                <p className="text-2xl font-bold text-blue-900">{formatearPeso(amortizacionPorSemana)}</p>
+                <p className="text-xs text-blue-600 mt-1">
+                  = {formatearPeso(f('costo_recria_por_ave'))} ÷ {form.vida_util_semanas} semanas
+                </p>
+              </div>
+            )}
           </div>
 
           {error && (

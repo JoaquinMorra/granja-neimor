@@ -144,6 +144,47 @@ export function getPeriodoActual(): { inicio: string; fin: string; label: string
   return { inicio: toISO(inicioDate), fin: toISO(finDate), label }
 }
 
+export function getPeriodoInfo(): {
+  inicio: string; fin: string; label: string; diaActual: number; diasTotales: number
+} {
+  const hoy = new Date()
+  const dia = hoy.getDate()
+
+  const inicioDate = dia <= 5
+    ? new Date(hoy.getFullYear(), hoy.getMonth() - 1, 6)
+    : new Date(hoy.getFullYear(), hoy.getMonth(), 6)
+  const finDate = new Date(inicioDate.getFullYear(), inicioDate.getMonth() + 1, 5)
+
+  const ms = 1000 * 60 * 60 * 24
+  const hoyMid = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()).getTime()
+  const inicioMid = new Date(inicioDate.getFullYear(), inicioDate.getMonth(), inicioDate.getDate()).getTime()
+  const finMid = new Date(finDate.getFullYear(), finDate.getMonth(), finDate.getDate()).getTime()
+
+  const diaActual = Math.round((hoyMid - inicioMid) / ms) + 1
+  const diasTotales = Math.round((finMid - inicioMid) / ms) + 1
+
+  const fmt: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' }
+  const label = `${inicioDate.toLocaleDateString('es-AR', fmt)} – ${finDate.toLocaleDateString('es-AR', fmt)}`
+
+  return { inicio: toISO(inicioDate), fin: toISO(finDate), label, diaActual, diasTotales }
+}
+
+export function getPeriodoAnterior(): { inicio: string; fin: string; label: string } {
+  const hoy = new Date()
+  const dia = hoy.getDate()
+  const periodoActualInicio = dia <= 5
+    ? new Date(hoy.getFullYear(), hoy.getMonth() - 1, 6)
+    : new Date(hoy.getFullYear(), hoy.getMonth(), 6)
+
+  const inicioDate = new Date(periodoActualInicio.getFullYear(), periodoActualInicio.getMonth() - 1, 6)
+  const finDate = new Date(inicioDate.getFullYear(), inicioDate.getMonth() + 1, 5)
+
+  const fmt: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' }
+  const label = `${inicioDate.toLocaleDateString('es-AR', fmt)} – ${finDate.toLocaleDateString('es-AR', fmt)}`
+
+  return { inicio: toISO(inicioDate), fin: toISO(finDate), label }
+}
+
 export function getUltimosPeriodos(n: number): { inicio: string; fin: string; label: string }[] {
   const hoy = new Date()
   const dia = hoy.getDate()
