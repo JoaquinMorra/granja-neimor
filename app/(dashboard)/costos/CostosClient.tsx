@@ -3,9 +3,9 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { formatearPeso } from '@/lib/utils'
-import { CODIGO_A_TIPO_VENTA } from '@/lib/utils'
 import { Settings, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react'
 import type { ConfigCostos, HistoricoCostoPeriodo } from '@/types'
+
 
 type ProductoMin = {
   id: string; codigo: string; nombre: string
@@ -35,7 +35,6 @@ type Props = {
   running: RunningData
   kgCompradosActual: number
   kgEstimadoActual: number
-  ventasPorTipo: Record<string, { monto: number; huevos: number }>
   productos: ProductoMin[]
 }
 
@@ -75,7 +74,7 @@ export default function CostosClient({
   gallinasBlancas, gallinasColoradas, gallinasActivas,
   estandar, historico, running,
   kgCompradosActual, kgEstimadoActual,
-  ventasPorTipo, productos,
+  productos,
 }: Props) {
   const [drilldown, setDrilldown] = useState<'estandar' | 'historico' | 'running' | null>(null)
 
@@ -357,9 +356,7 @@ export default function CostosClient({
             <div className="card overflow-hidden">
               <div className="p-5 border-b border-slate-100">
                 <h3 className="font-semibold text-slate-800">Margen por SKU</h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Precio venta promedio del período vs costo estándar
-                </p>
+                <p className="text-xs text-slate-500 mt-0.5">Precio mayorista del catálogo vs costo estándar</p>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -368,25 +365,16 @@ export default function CostosClient({
                       <th className="table-th">SKU</th>
                       <th className="table-th text-right">Unidades</th>
                       <th className="table-th text-right">Costo est.</th>
-                      <th className="table-th text-right">P. venta promedio</th>
+                      <th className="table-th text-right">Precio venta</th>
                       <th className="table-th text-right">Margen $</th>
                       <th className="table-th text-right">Margen %</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
                     {productos.map((prod) => {
-                      const tipoLegacy = CODIGO_A_TIPO_VENTA[prod.codigo]
-                      const vt = tipoLegacy ? ventasPorTipo[tipoLegacy] : undefined
-                      const ventasHuevos = vt?.huevos ?? 0
-                      const ventasMonto = vt?.monto ?? 0
-                      const precioPromedioHuevo =
-                        ventasHuevos > 0
-                          ? ventasMonto / ventasHuevos
-                          : prod.precio_mayorista / prod.unidades_por_caja
-                      const precioVentaUnitario = precioPromedioHuevo * prod.unidades_por_caja
                       const costoUnitario = costoPorHuevoEstandar * prod.unidades_por_caja
-                      const margenMonto = precioVentaUnitario - costoUnitario
-                      const margenPct = precioVentaUnitario > 0 ? (margenMonto / precioVentaUnitario) * 100 : 0
+                      const margenMonto = prod.precio_mayorista - costoUnitario
+                      const margenPct = prod.precio_mayorista > 0 ? (margenMonto / prod.precio_mayorista) * 100 : 0
                       const negativo = margenMonto < 0
 
                       return (
@@ -397,12 +385,7 @@ export default function CostosClient({
                           </td>
                           <td className="table-td text-right text-sm">{prod.unidades_por_caja}</td>
                           <td className="table-td text-right font-semibold">{formatearPeso(costoUnitario)}</td>
-                          <td className="table-td text-right">
-                            {ventasHuevos > 0
-                              ? <span className="font-semibold">{formatearPeso(precioVentaUnitario)}</span>
-                              : <span className="text-slate-400 text-xs">Sin ventas — {formatearPeso(prod.precio_mayorista)}</span>
-                            }
-                          </td>
+                          <td className="table-td text-right font-semibold">{formatearPeso(prod.precio_mayorista)}</td>
                           <td className={`table-td text-right font-bold ${negativo ? 'text-red-700' : 'text-green-700'}`}>
                             {formatearPeso(margenMonto)}
                           </td>

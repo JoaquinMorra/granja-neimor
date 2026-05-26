@@ -38,7 +38,6 @@ export default async function CostosPage() {
     { data: historicoRaw },
     { data: prodActualRaw },
     { data: comprasAlimentoActualRaw },
-    { data: ventasActualRaw },
     { data: productos },
   ] = await Promise.all([
     supabase.from('gallinas_actuales').select('galpon_id, gallinas_actuales'),
@@ -58,12 +57,6 @@ export default async function CostosPage() {
       .select('kg_alimento, proveedor:proveedores(tipo)')
       .gte('fecha', periodoInfo.inicio)
       .lte('fecha', hoy),
-    supabase
-      .from('ventas')
-      .select('tipo_venta, monto_cobrado, equivalente_huevos')
-      .gte('fecha', periodoInfo.inicio)
-      .lte('fecha', hoy)
-      .neq('estado', 'PENDIENTE'),
     supabase
       .from('productos')
       .select('id, codigo, nombre, precio_mayorista, precio_minorista, unidades_por_caja')
@@ -200,14 +193,6 @@ export default async function CostosPage() {
     .reduce((s: number, c: any) => s + (c.kg_alimento ?? 0), 0)
   const kgEstimadoActual = alimentoDiarioKg * N
 
-  // Ventas por tipo para margen SKU
-  const ventasPorTipo: Record<string, { monto: number; huevos: number }> = {}
-  for (const v of ventasActualRaw ?? []) {
-    if (!ventasPorTipo[v.tipo_venta]) ventasPorTipo[v.tipo_venta] = { monto: 0, huevos: 0 }
-    ventasPorTipo[v.tipo_venta].monto += v.monto_cobrado ?? 0
-    ventasPorTipo[v.tipo_venta].huevos += v.equivalente_huevos ?? 0
-  }
-
   const configCompleta = config.precio_kg_alimento > 0
 
   return (
@@ -242,7 +227,6 @@ export default async function CostosPage() {
       }}
       kgCompradosActual={kgCompradosActual}
       kgEstimadoActual={kgEstimadoActual}
-      ventasPorTipo={ventasPorTipo}
       productos={productos ?? []}
     />
   )
