@@ -3,13 +3,14 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { X } from 'lucide-react'
-import type { Galpon, LoteConCalculos } from '@/types'
+import { X, AlertTriangle } from 'lucide-react'
+import type { Galpon, LoteConCalculos, ProduccionDiaria } from '@/types'
 import { getPosturaEsperada, hoyISO } from '@/lib/utils'
 
 type Props = {
   galpones: Galpon[]
   lotes: LoteConCalculos[]
+  produccionReciente: ProduccionDiaria[]
   onClose: () => void
 }
 
@@ -19,15 +20,21 @@ type FilaProduccion = {
   muertes: string
 }
 
-export default function CargaProduccionModal({ galpones, lotes, onClose }: Props) {
+export default function CargaProduccionModal({ galpones, lotes, produccionReciente, onClose }: Props) {
   const router = useRouter()
-  const [fecha, setFecha] = useState(hoyISO())
+  const hoy = hoyISO()
+  const [fecha, setFecha] = useState(hoy)
   const [galponId, setGalponId] = useState(galpones[0]?.id ?? '')
   const [filas, setFilas] = useState<FilaProduccion[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const lotesGalpon = lotes.filter((l) => l.galpon_id === galponId && l.activo)
+
+  // Validación: ¿ya existe carga para este galpón en esta fecha?
+  const loteIds = lotesGalpon.map(l => l.id)
+  const yaExisteCarga = produccionReciente.some(p => p.fecha === fecha && loteIds.includes(p.lote_id))
+  const galponNombre = galpones.find(g => g.id === galponId)?.nombre ?? ''
 
   function initFilas(gId: string) {
     const lotesFiltrados = lotes.filter((l) => l.galpon_id === gId && l.activo)
@@ -82,7 +89,6 @@ export default function CargaProduccionModal({ galpones, lotes, onClose }: Props
     onClose()
   }
 
-  // Init filas on first render
   if (filas.length === 0 && lotesGalpon.length > 0) {
     initFilas(galponId)
   }
@@ -104,6 +110,7 @@ export default function CargaProduccionModal({ galpones, lotes, onClose }: Props
               <input
                 type="date"
                 value={fecha}
+                max={hoy}
                 onChange={(e) => setFecha(e.target.value)}
                 className="input"
                 required
@@ -122,6 +129,17 @@ export default function CargaProduccionModal({ galpones, lotes, onClose }: Props
               </select>
             </div>
           </div>
+
+          {/* Advertencia de carga existente */}
+          {yaExisteCarga && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-start gap-2 text-sm text-amber-800">
+              <AlertTriangle size={15} className="shrink-0 mt-0.5 text-amber-500" />
+              <span>
+                Ya existe una carga para <strong>{galponNombre}</strong> en esta fecha.
+                Al guardar, se actualizarán los valores existentes.
+              </span>
+            </div>
+          )}
 
           {/* Tabla de lotes */}
           <div className="overflow-x-auto">
@@ -152,9 +170,7 @@ export default function CargaProduccionModal({ galpones, lotes, onClose }: Props
                   return (
                     <tr key={lote.id} className="py-2">
                       <td className="py-2 font-medium text-slate-700">{lote.nombre}</td>
-                      <td className="py-2 text-center text-slate-600">
-                        {lote.gallinas_actuales.toLocaleString()}
-                      </td>
+                      <td className="py-2 text-center text-slate-600">{lote.gallinas_actuales.toLocaleString()}</td>
                       <td className="py-2 text-center text-slate-600">
                         {lote.edad_semanas !== null ? `${lote.edad_semanas}s` : '—'}
                       </td>
@@ -164,23 +180,18 @@ export default function CargaProduccionModal({ galpones, lotes, onClose }: Props
                       <td className="py-2 px-1">
                         <div className="relative">
                           <input
-                            type="number"
-                            min="0"
+                            type="number" min="0"
                             value={fila?.huevos ?? ''}
                             onChange={(e) => updateFila(idx, 'huevos', e.target.value)}
                             className={`input text-center ${
-                              fila?.huevos && !porcentajeOk
-                                ? 'border-amber-400 bg-amber-50'
-                                : ''
+                              fila?.huevos && !porcentajeOk ? 'border-amber-400 bg-amber-50' : ''
                             }`}
                             placeholder="0"
                           />
                           {fila?.huevos && (
-                            <span
-                              className={`text-xs block text-center mt-0.5 font-medium ${
-                                porcentajeOk ? 'text-green-600' : 'text-amber-600'
-                              }`}
-                            >
+                            <span className={`text-xs block text-center mt-0.5 font-medium ${
+                              porcentajeOk ? 'text-green-600' : 'text-amber-600'
+                            }`}>
                               {porcentaje.toFixed(1)}%
                             </span>
                           )}
@@ -188,8 +199,7 @@ export default function CargaProduccionModal({ galpones, lotes, onClose }: Props
                       </td>
                       <td className="py-2 px-1">
                         <input
-                          type="number"
-                          min="0"
+                          type="number" min="0"
                           value={fila?.muertes ?? ''}
                           onChange={(e) => updateFila(idx, 'muertes', e.target.value)}
                           className="input text-center"
@@ -210,9 +220,7 @@ export default function CargaProduccionModal({ galpones, lotes, onClose }: Props
           )}
 
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="btn-secondary flex-1">
-              Cancelar
-            </button>
+            <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancelar</button>
             <button type="submit" disabled={loading} className="btn-primary flex-1">
               {loading ? 'Guardando...' : 'Guardar producción'}
             </button>

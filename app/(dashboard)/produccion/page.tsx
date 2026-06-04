@@ -12,6 +12,7 @@ export default async function ProduccionPage() {
       .from('produccion_diaria')
       .select('*, lote:lotes(nombre, galpon:galpones(nombre, tipo))')
       .gte('fecha', format(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'))
+      .is('deleted_at', null)
       .order('fecha', { ascending: false })
       .order('created_at', { ascending: false }),
   ])
