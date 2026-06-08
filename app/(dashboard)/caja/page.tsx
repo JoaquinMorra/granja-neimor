@@ -1,14 +1,31 @@
 import { createClient } from '@/lib/supabase/server'
 import CajaClient from './CajaClient'
-import { getPeriodoActual, getUltimosPeriodos } from '@/lib/utils'
+import { getPeriodoActual, getUltimosPeriodos, hoyISO } from '@/lib/utils'
 
-export default async function CajaPage() {
+export default async function CajaPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ periodo?: string }>
+}) {
   const supabase = await createClient()
-  const { inicio: mesInicio, fin: mesFin, label: periodoLabel } = getPeriodoActual()
+  const { periodo: periodoParam } = await searchParams
   const periodos = getUltimosPeriodos(6)
-  const inicioHistorico = periodos[0].inicio
+  const periodoActual = getPeriodoActual()
 
-  const [{ data: movimientos }, { data: resumenMensual }] = await Promise.all([
+  const periodoEncontrado = periodoParam
+    ? periodos.find((p) => p.inicio === periodoParam)
+    : undefined
+
+  const mesInicio = periodoEncontrado?.inicio ?? periodoActual.inicio
+  const mesFin = periodoEncontrado?.fin ?? periodoActual.fin
+
+  const fmt: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' }
+  const periodoLabel = `${new Date(mesInicio + 'T12:00:00').toLocaleDateString('es-AR', fmt)} – ${new Date(mesFin + 'T12:00:00').toLocaleDateString('es-AR', fmt)}`
+
+  const inicioHistorico = periodos[0].inicio
+  const hoy = hoyISO()
+
+  const [{ data: movimientos }, { data: resumenMensual }, { data: futuras }] = await Promise.all([
     supabase
       .from('caja')
       .select('*')
@@ -21,6 +38,10 @@ export default async function CajaPage() {
       .select('fecha, tipo, monto')
       .gte('fecha', inicioHistorico)
       .order('fecha'),
+    supabase
+      .from('caja')
+      .select('id')
+      .gt('fecha', hoy),
   ])
 
   return (
@@ -28,7 +49,9 @@ export default async function CajaPage() {
       movimientos={movimientos ?? []}
       resumenMensual={resumenMensual ?? []}
       periodoLabel={periodoLabel}
+      periodoInicio={mesInicio}
       periodos={periodos}
+      cantFuturas={futuras?.length ?? 0}
     />
   )
 }

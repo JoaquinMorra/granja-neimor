@@ -8,6 +8,7 @@ import { formatearFecha, formatearPeso, CATEGORIAS_INGRESO, CATEGORIAS_EGRESO, h
 import {
   BarChart,
   Bar,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -15,8 +16,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts'
-import { Plus, X, TrendingUp, TrendingDown, Wallet, ArrowLeftRight, Pencil, Trash2 } from 'lucide-react'
-import { format } from 'date-fns'
+import { Plus, X, TrendingUp, TrendingDown, Wallet, ArrowLeftRight, Pencil, Trash2, AlertTriangle } from 'lucide-react'
 
 type Periodo = { inicio: string; fin: string; label: string }
 
@@ -24,7 +24,9 @@ type Props = {
   movimientos: Caja[]
   resumenMensual: { fecha: string; tipo: string; monto: number }[]
   periodoLabel: string
+  periodoInicio: string
   periodos: Periodo[]
+  cantFuturas: number
 }
 
 function NuevoMovimientoModal({ onClose }: { onClose: () => void }) {
@@ -86,22 +88,12 @@ function NuevoMovimientoModal({ onClose }: { onClose: () => void }) {
             <div>
               <label className="label">Tipo</label>
               <div className="flex gap-2">
-                <button type="button"
-                  onClick={() => handleTipoChange('INGRESO')}
-                  className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                    form.tipo === 'INGRESO'
-                      ? 'bg-green-600 text-white border-green-600'
-                      : 'bg-white text-slate-700 border-slate-300 hover:border-green-400'
-                  }`}>
+                <button type="button" onClick={() => handleTipoChange('INGRESO')}
+                  className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${form.tipo === 'INGRESO' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-slate-700 border-slate-300 hover:border-green-400'}`}>
                   INGRESO
                 </button>
-                <button type="button"
-                  onClick={() => handleTipoChange('EGRESO')}
-                  className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                    form.tipo === 'EGRESO'
-                      ? 'bg-red-600 text-white border-red-600'
-                      : 'bg-white text-slate-700 border-slate-300 hover:border-red-400'
-                  }`}>
+                <button type="button" onClick={() => handleTipoChange('EGRESO')}
+                  className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${form.tipo === 'EGRESO' ? 'bg-red-600 text-white border-red-600' : 'bg-white text-slate-700 border-slate-300 hover:border-red-400'}`}>
                   EGRESO
                 </button>
               </div>
@@ -111,22 +103,12 @@ function NuevoMovimientoModal({ onClose }: { onClose: () => void }) {
           <div>
             <label className="label">Medio de pago</label>
             <div className="flex gap-2">
-              <button type="button"
-                onClick={() => setForm((p) => ({ ...p, medio_pago: 'EFECTIVO' }))}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                  form.medio_pago === 'EFECTIVO'
-                    ? 'bg-slate-700 text-white border-slate-700'
-                    : 'bg-white text-slate-700 border-slate-300 hover:border-slate-500'
-                }`}>
+              <button type="button" onClick={() => setForm((p) => ({ ...p, medio_pago: 'EFECTIVO' }))}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${form.medio_pago === 'EFECTIVO' ? 'bg-slate-700 text-white border-slate-700' : 'bg-white text-slate-700 border-slate-300 hover:border-slate-500'}`}>
                 Efectivo
               </button>
-              <button type="button"
-                onClick={() => setForm((p) => ({ ...p, medio_pago: 'TRANSFERENCIA' }))}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                  form.medio_pago === 'TRANSFERENCIA'
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white text-slate-700 border-slate-300 hover:border-blue-400'
-                }`}>
+              <button type="button" onClick={() => setForm((p) => ({ ...p, medio_pago: 'TRANSFERENCIA' }))}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${form.medio_pago === 'TRANSFERENCIA' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-700 border-slate-300 hover:border-blue-400'}`}>
                 Transferencia
               </button>
             </div>
@@ -134,8 +116,7 @@ function NuevoMovimientoModal({ onClose }: { onClose: () => void }) {
 
           <div>
             <label className="label">Categoría</label>
-            <select value={form.categoria}
-              onChange={(e) => setForm((p) => ({ ...p, categoria: e.target.value }))}
+            <select value={form.categoria} onChange={(e) => setForm((p) => ({ ...p, categoria: e.target.value }))}
               className="input" required>
               <option value="">Seleccioná una categoría</option>
               {categorias.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -156,9 +137,7 @@ function NuevoMovimientoModal({ onClose }: { onClose: () => void }) {
               className="input" placeholder="0" required />
           </div>
 
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-700">{error}</div>
-          )}
+          {error && <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-700">{error}</div>}
 
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancelar</button>
@@ -231,22 +210,12 @@ function EditarMovimientoModal({ movimiento, onClose }: { movimiento: Caja; onCl
             <div>
               <label className="label">Tipo</label>
               <div className="flex gap-2">
-                <button type="button"
-                  onClick={() => handleTipoChange('INGRESO')}
-                  className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                    form.tipo === 'INGRESO'
-                      ? 'bg-green-600 text-white border-green-600'
-                      : 'bg-white text-slate-700 border-slate-300 hover:border-green-400'
-                  }`}>
+                <button type="button" onClick={() => handleTipoChange('INGRESO')}
+                  className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${form.tipo === 'INGRESO' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-slate-700 border-slate-300 hover:border-green-400'}`}>
                   INGRESO
                 </button>
-                <button type="button"
-                  onClick={() => handleTipoChange('EGRESO')}
-                  className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                    form.tipo === 'EGRESO'
-                      ? 'bg-red-600 text-white border-red-600'
-                      : 'bg-white text-slate-700 border-slate-300 hover:border-red-400'
-                  }`}>
+                <button type="button" onClick={() => handleTipoChange('EGRESO')}
+                  className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${form.tipo === 'EGRESO' ? 'bg-red-600 text-white border-red-600' : 'bg-white text-slate-700 border-slate-300 hover:border-red-400'}`}>
                   EGRESO
                 </button>
               </div>
@@ -256,22 +225,12 @@ function EditarMovimientoModal({ movimiento, onClose }: { movimiento: Caja; onCl
           <div>
             <label className="label">Medio de pago</label>
             <div className="flex gap-2">
-              <button type="button"
-                onClick={() => setForm((p) => ({ ...p, medio_pago: 'EFECTIVO' }))}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                  form.medio_pago === 'EFECTIVO'
-                    ? 'bg-slate-700 text-white border-slate-700'
-                    : 'bg-white text-slate-700 border-slate-300 hover:border-slate-500'
-                }`}>
+              <button type="button" onClick={() => setForm((p) => ({ ...p, medio_pago: 'EFECTIVO' }))}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${form.medio_pago === 'EFECTIVO' ? 'bg-slate-700 text-white border-slate-700' : 'bg-white text-slate-700 border-slate-300 hover:border-slate-500'}`}>
                 Efectivo
               </button>
-              <button type="button"
-                onClick={() => setForm((p) => ({ ...p, medio_pago: 'TRANSFERENCIA' }))}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                  form.medio_pago === 'TRANSFERENCIA'
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white text-slate-700 border-slate-300 hover:border-blue-400'
-                }`}>
+              <button type="button" onClick={() => setForm((p) => ({ ...p, medio_pago: 'TRANSFERENCIA' }))}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${form.medio_pago === 'TRANSFERENCIA' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-700 border-slate-300 hover:border-blue-400'}`}>
                 Transferencia
               </button>
             </div>
@@ -279,8 +238,7 @@ function EditarMovimientoModal({ movimiento, onClose }: { movimiento: Caja; onCl
 
           <div>
             <label className="label">Categoría</label>
-            <select value={form.categoria}
-              onChange={(e) => setForm((p) => ({ ...p, categoria: e.target.value }))}
+            <select value={form.categoria} onChange={(e) => setForm((p) => ({ ...p, categoria: e.target.value }))}
               className="input" required>
               <option value="">Seleccioná una categoría</option>
               {categorias.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -301,9 +259,7 @@ function EditarMovimientoModal({ movimiento, onClose }: { movimiento: Caja; onCl
               className="input" placeholder="0" required />
           </div>
 
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-700">{error}</div>
-          )}
+          {error && <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-700">{error}</div>}
 
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancelar</button>
@@ -317,7 +273,9 @@ function EditarMovimientoModal({ movimiento, onClose }: { movimiento: Caja; onCl
   )
 }
 
-export default function CajaClient({ movimientos, resumenMensual, periodoLabel, periodos }: Props) {
+export default function CajaClient({
+  movimientos, resumenMensual, periodoLabel, periodoInicio, periodos, cantFuturas,
+}: Props) {
   const router = useRouter()
   const [modalOpen, setModalOpen] = useState(false)
   const [movimientoEditando, setMovimientoEditando] = useState<Caja | null>(null)
@@ -330,53 +288,32 @@ export default function CajaClient({ movimientos, resumenMensual, periodoLabel, 
     router.refresh()
   }
 
-  const totalIngresos = movimientos
-    .filter((m) => m.tipo === 'INGRESO')
-    .reduce((s, m) => s + m.monto, 0)
-  const totalEgresos = movimientos
-    .filter((m) => m.tipo === 'EGRESO')
-    .reduce((s, m) => s + m.monto, 0)
+  // KPIs del período seleccionado
+  const totalIngresos = movimientos.filter((m) => m.tipo === 'INGRESO').reduce((s, m) => s + m.monto, 0)
+  const totalEgresos  = movimientos.filter((m) => m.tipo === 'EGRESO').reduce((s, m) => s + m.monto, 0)
   const saldoMes = totalIngresos - totalEgresos
 
-  const ingresosEfectivo = movimientos
-    .filter((m) => m.tipo === 'INGRESO' && m.medio_pago === 'EFECTIVO')
-    .reduce((s, m) => s + m.monto, 0)
-  const egresosEfectivo = movimientos
-    .filter((m) => m.tipo === 'EGRESO' && m.medio_pago === 'EFECTIVO')
-    .reduce((s, m) => s + m.monto, 0)
+  const ingresosEfectivo = movimientos.filter((m) => m.tipo === 'INGRESO' && m.medio_pago === 'EFECTIVO').reduce((s, m) => s + m.monto, 0)
+  const egresosEfectivo  = movimientos.filter((m) => m.tipo === 'EGRESO'  && m.medio_pago === 'EFECTIVO').reduce((s, m) => s + m.monto, 0)
   const saldoEfectivo = ingresosEfectivo - egresosEfectivo
 
-  const ingresosTransf = movimientos
-    .filter((m) => m.tipo === 'INGRESO' && m.medio_pago === 'TRANSFERENCIA')
-    .reduce((s, m) => s + m.monto, 0)
-  const egresosTransf = movimientos
-    .filter((m) => m.tipo === 'EGRESO' && m.medio_pago === 'TRANSFERENCIA')
-    .reduce((s, m) => s + m.monto, 0)
+  const ingresosTransf = movimientos.filter((m) => m.tipo === 'INGRESO' && m.medio_pago === 'TRANSFERENCIA').reduce((s, m) => s + m.monto, 0)
+  const egresosTransf  = movimientos.filter((m) => m.tipo === 'EGRESO'  && m.medio_pago === 'TRANSFERENCIA').reduce((s, m) => s + m.monto, 0)
   const saldoTransf = ingresosTransf - egresosTransf
 
-  // Resumen por categoría
   const egresosPorCategoria = useMemo(() => {
     const mapa = new Map<string, number>()
-    movimientos
-      .filter((m) => m.tipo === 'EGRESO')
-      .forEach((m) => {
-        mapa.set(m.categoria, (mapa.get(m.categoria) ?? 0) + m.monto)
-      })
-    return Array.from(mapa.entries())
-      .sort(([, a], [, b]) => b - a)
-      .map(([categoria, monto]) => ({ categoria, monto }))
+    movimientos.filter((m) => m.tipo === 'EGRESO').forEach((m) => {
+      mapa.set(m.categoria, (mapa.get(m.categoria) ?? 0) + m.monto)
+    })
+    return Array.from(mapa.entries()).sort(([, a], [, b]) => b - a).map(([categoria, monto]) => ({ categoria, monto }))
   }, [movimientos])
 
-  // Gráfico por período (6 al 5)
   const graficoMensual = useMemo(() => {
     return periodos.map(({ inicio, fin, label }) => {
-      const ingresos = resumenMensual
-        .filter((m) => m.tipo === 'INGRESO' && m.fecha >= inicio && m.fecha <= fin)
-        .reduce((s, m) => s + m.monto, 0)
-      const egresos = resumenMensual
-        .filter((m) => m.tipo === 'EGRESO' && m.fecha >= inicio && m.fecha <= fin)
-        .reduce((s, m) => s + m.monto, 0)
-      return { mes: label, ingresos, egresos }
+      const ingresos = resumenMensual.filter((m) => m.tipo === 'INGRESO' && m.fecha >= inicio && m.fecha <= fin).reduce((s, m) => s + m.monto, 0)
+      const egresos  = resumenMensual.filter((m) => m.tipo === 'EGRESO'  && m.fecha >= inicio && m.fecha <= fin).reduce((s, m) => s + m.monto, 0)
+      return { mes: label, ingresos, egresos, inicio }
     })
   }, [resumenMensual, periodos])
 
@@ -393,12 +330,34 @@ export default function CajaClient({ movimientos, resumenMensual, periodoLabel, 
           <h1 className="text-2xl font-bold text-slate-900">Caja</h1>
           <p className="text-sm text-slate-500 mt-0.5">Período {periodoLabel}</p>
         </div>
-        <button onClick={() => setModalOpen(true)} className="btn-primary flex items-center gap-2">
-          <Plus size={18} />
-          <span className="hidden sm:inline">Nuevo movimiento</span>
-          <span className="sm:hidden">Nuevo</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <select
+            value={periodoInicio}
+            onChange={(e) => router.push(`/caja?periodo=${e.target.value}`)}
+            className="input w-auto text-sm"
+          >
+            {[...periodos].reverse().map((p) => (
+              <option key={p.inicio} value={p.inicio}>{p.label}</option>
+            ))}
+          </select>
+          <button onClick={() => setModalOpen(true)} className="btn-primary flex items-center gap-2">
+            <Plus size={18} />
+            <span className="hidden sm:inline">Nuevo movimiento</span>
+            <span className="sm:hidden">Nuevo</span>
+          </button>
+        </div>
       </div>
+
+      {/* Alerta movimientos futuros */}
+      {cantFuturas > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-3">
+          <AlertTriangle className="text-amber-500 shrink-0" size={18} />
+          <p className="text-sm text-amber-800">
+            Hay <strong>{cantFuturas} movimiento{cantFuturas > 1 ? 's' : ''}</strong> con fecha futura registrados en Caja.
+            Revisá la tabla de movimientos para identificarlos y corregirlos.
+          </p>
+        </div>
+      )}
 
       {/* KPIs */}
       <div className="space-y-3">
@@ -406,21 +365,21 @@ export default function CajaClient({ movimientos, resumenMensual, periodoLabel, 
           <div className="card p-4">
             <div className="flex items-center gap-2 mb-1">
               <TrendingUp size={16} className="text-green-500" />
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Ingresos del mes</p>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Ingresos del período</p>
             </div>
             <p className="text-2xl font-bold text-green-800">{formatearPeso(totalIngresos)}</p>
           </div>
           <div className="card p-4">
             <div className="flex items-center gap-2 mb-1">
               <TrendingDown size={16} className="text-red-500" />
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Egresos del mes</p>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Egresos del período</p>
             </div>
             <p className="text-2xl font-bold text-red-800">{formatearPeso(totalEgresos)}</p>
           </div>
           <div className="card p-4">
             <div className="flex items-center gap-2 mb-1">
               <Wallet size={16} className="text-blue-500" />
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Saldo del mes</p>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Saldo del período</p>
             </div>
             <p className={`text-2xl font-bold ${saldoMes >= 0 ? 'text-green-800' : 'text-red-800'}`}>
               {formatearPeso(saldoMes)}
@@ -428,7 +387,6 @@ export default function CajaClient({ movimientos, resumenMensual, periodoLabel, 
           </div>
         </div>
 
-        {/* KPIs efectivo */}
         <div className="grid grid-cols-3 gap-4">
           <div className="card p-4 border-l-4 border-l-slate-400">
             <div className="flex items-center gap-2 mb-1">
@@ -455,7 +413,6 @@ export default function CajaClient({ movimientos, resumenMensual, periodoLabel, 
           </div>
         </div>
 
-        {/* KPIs transferencias */}
         <div className="grid grid-cols-3 gap-4">
           <div className="card p-4 border-l-4 border-l-blue-400">
             <div className="flex items-center gap-2 mb-1">
@@ -484,9 +441,9 @@ export default function CajaClient({ movimientos, resumenMensual, periodoLabel, 
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Gráfico */}
+        {/* Gráfico — período seleccionado destacado */}
         <div className="card p-5">
-          <h3 className="font-semibold text-slate-800 mb-4">Flujo de caja — últimos 6 meses</h3>
+          <h3 className="font-semibold text-slate-800 mb-4">Flujo de caja — últimos 6 períodos</h3>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={graficoMensual} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -497,18 +454,26 @@ export default function CajaClient({ movimientos, resumenMensual, periodoLabel, 
                 labelStyle={{ fontWeight: 600 }}
               />
               <Legend iconSize={10} wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="ingresos" name="Ingresos" fill="#22c55e" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="egresos" name="Egresos" fill="#ef4444" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="ingresos" name="Ingresos" radius={[4, 4, 0, 0]}>
+                {graficoMensual.map((entry, i) => (
+                  <Cell key={`ing-${i}`} fill={entry.inicio === periodoInicio ? '#16a34a' : '#86efac'} />
+                ))}
+              </Bar>
+              <Bar dataKey="egresos" name="Egresos" radius={[4, 4, 0, 0]}>
+                {graficoMensual.map((entry, i) => (
+                  <Cell key={`eg-${i}`} fill={entry.inicio === periodoInicio ? '#dc2626' : '#fca5a5'} />
+                ))}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
 
         {/* Egresos por categoría */}
         <div className="card p-5">
-          <h3 className="font-semibold text-slate-800 mb-4">Egresos por categoría (mes)</h3>
+          <h3 className="font-semibold text-slate-800 mb-4">Egresos por categoría (período)</h3>
           <div className="space-y-3">
             {egresosPorCategoria.length === 0 ? (
-              <p className="text-sm text-slate-400 text-center py-6">Sin egresos este mes</p>
+              <p className="text-sm text-slate-400 text-center py-6">Sin egresos en el período</p>
             ) : (
               egresosPorCategoria.map(({ categoria, monto }) => {
                 const pct = totalEgresos > 0 ? (monto / totalEgresos) * 100 : 0
@@ -519,10 +484,7 @@ export default function CajaClient({ movimientos, resumenMensual, periodoLabel, 
                       <span className="font-semibold text-slate-800">{formatearPeso(monto)}</span>
                     </div>
                     <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-red-400 rounded-full"
-                        style={{ width: `${pct}%` }}
-                      />
+                      <div className="h-full bg-red-400 rounded-full" style={{ width: `${pct}%` }} />
                     </div>
                   </div>
                 )
@@ -536,7 +498,7 @@ export default function CajaClient({ movimientos, resumenMensual, periodoLabel, 
       <div className="card overflow-hidden">
         <div className="p-5 border-b border-slate-100">
           <div className="flex items-center gap-3">
-            <h3 className="font-semibold text-slate-800 mr-auto">Movimientos del mes</h3>
+            <h3 className="font-semibold text-slate-800 mr-auto">Movimientos del período</h3>
             <select
               value={filtroTipo}
               onChange={(e) => setFiltroTipo(e.target.value)}
@@ -564,43 +526,25 @@ export default function CajaClient({ movimientos, resumenMensual, periodoLabel, 
             <tbody className="divide-y divide-slate-50">
               {movimientosFiltrados.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="table-td text-center text-slate-400 py-8">
-                    Sin movimientos
-                  </td>
+                  <td colSpan={7} className="table-td text-center text-slate-400 py-8">Sin movimientos</td>
                 </tr>
               ) : (
                 movimientosFiltrados.map((m) => (
                   <tr key={m.id} className="hover:bg-slate-50">
                     <td className="table-td">{formatearFecha(m.fecha)}</td>
                     <td className="table-td">
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                          m.tipo === 'INGRESO'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}
-                      >
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${m.tipo === 'INGRESO' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                         {m.tipo}
                       </span>
                     </td>
                     <td className="table-td">
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                          m.medio_pago === 'TRANSFERENCIA'
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-slate-100 text-slate-700'
-                        }`}
-                      >
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${m.medio_pago === 'TRANSFERENCIA' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-700'}`}>
                         {m.medio_pago === 'TRANSFERENCIA' ? 'Transf.' : 'Efectivo'}
                       </span>
                     </td>
                     <td className="table-td">{m.categoria}</td>
                     <td className="table-td text-slate-500">{m.descripcion ?? '—'}</td>
-                    <td
-                      className={`table-td text-right font-semibold ${
-                        m.tipo === 'INGRESO' ? 'text-green-700' : 'text-red-700'
-                      }`}
-                    >
+                    <td className={`table-td text-right font-semibold ${m.tipo === 'INGRESO' ? 'text-green-700' : 'text-red-700'}`}>
                       {m.tipo === 'INGRESO' ? '+' : '-'} {formatearPeso(m.monto)}
                     </td>
                     <td className="table-td">
@@ -631,10 +575,7 @@ export default function CajaClient({ movimientos, resumenMensual, periodoLabel, 
 
       {modalOpen && <NuevoMovimientoModal onClose={() => setModalOpen(false)} />}
       {movimientoEditando && (
-        <EditarMovimientoModal
-          movimiento={movimientoEditando}
-          onClose={() => setMovimientoEditando(null)}
-        />
+        <EditarMovimientoModal movimiento={movimientoEditando} onClose={() => setMovimientoEditando(null)} />
       )}
     </div>
   )
