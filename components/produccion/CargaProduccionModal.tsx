@@ -67,6 +67,7 @@ export default function CargaProduccionModal({ galpones, lotes, produccionRecien
         fecha,
         huevos: parseInt(f.huevos || '0'),
         muertes: parseInt(f.muertes || '0'),
+        deleted_at: null,
       }))
 
     if (registros.length === 0) {
