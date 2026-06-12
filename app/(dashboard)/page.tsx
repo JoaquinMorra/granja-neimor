@@ -15,6 +15,8 @@ import {
   Building2,
   Truck,
   Scale,
+  Store,
+  Package,
 } from 'lucide-react'
 import {
   calcularEdadSemanas,
@@ -23,6 +25,7 @@ import {
   huevosACajones,
   PUNTO_EQUILIBRIO_CAJONES,
   getUltimosPeriodos,
+  getPeriodoActual,
 } from '@/lib/utils'
 import { format, subDays, startOfMonth, endOfMonth } from 'date-fns'
 
@@ -38,6 +41,7 @@ async function getDashboardData() {
 
   // Últimos 6 períodos contables (6 al 5) para el gráfico de ventas
   const periodosVentas = getUltimosPeriodos(6)
+  const periodoActual = getPeriodoActual()
 
   const [
     { data: galpones },
@@ -49,6 +53,8 @@ async function getDashboardData() {
     { data: deudas },
     { data: ventasMensuales },
     { data: comprasProveedores },
+    { data: puestoCierres },
+    { data: puestoTransferencias },
   ] = await Promise.all([
     supabase.from('galpones').select('*').order('orden'),
     supabase.from('gallinas_actuales').select('*'),
@@ -67,6 +73,14 @@ async function getDashboardData() {
       .gte('fecha', periodosVentas[0].inicio)
       .order('fecha'),
     supabase.from('compras_proveedor').select('total, monto_pagado'),
+    supabase
+      .from('puesto_cierres')
+      .select('fecha, total_efectivo, total_transferencia, items:puesto_cierre_items(cantidad, producto:productos(unidades_por_caja))')
+      .is('deleted_at', null),
+    supabase
+      .from('puesto_transferencias')
+      .select('fecha, items:puesto_transferencia_items(cantidad, producto:productos(unidades_por_caja))')
+      .is('deleted_at', null),
   ])
 
   // Total gallinas por galpón
@@ -160,6 +174,31 @@ async function getDashboardData() {
   // Caja neta = deuda clientes - deuda proveedores (simplificado)
   const cajaNeta = cuentasPorCobrar - deudaProveedores
 
+  // KPIs del puesto mercado
+  const cajEquiv = (cant: number, upCaja: number) => cant * upCaja / 360
+  const ventasPuesto = (puestoCierres ?? [])
+    .filter((c: any) => c.fecha >= periodoActual.inicio && c.fecha <= periodoActual.fin)
+    .reduce((s: number, c: any) => s + c.total_efectivo + c.total_transferencia, 0)
+  const stockPuestoCajones = (() => {
+    let total = 0
+    for (const t of puestoTransferencias ?? []) {
+      for (const item of (t as any).items) {
+        total += cajEquiv(item.cantidad, item.producto?.unidades_por_caja ?? 360)
+      }
+    }
+    for (const c of puestoCierres ?? []) {
+      for (const item of (c as any).items) {
+        total -= cajEquiv(item.cantidad, item.producto?.unidades_por_caja ?? 360)
+      }
+    }
+    return total
+  })()
+  const cajonesTransfPuesto = (puestoTransferencias ?? [])
+    .filter((t: any) => t.fecha >= periodoActual.inicio && t.fecha <= periodoActual.fin)
+    .reduce((s: number, t: any) =>
+      s + (t.items as any[]).reduce((si: number, item: any) =>
+        si + cajEquiv(item.cantidad, item.producto?.unidades_por_caja ?? 360), 0), 0)
+
   return {
     totalGallinas,
     gallonasPorGalpon,
@@ -174,6 +213,9 @@ async function getDashboardData() {
     mesesVentas,
     alertasCount,
     cajonesVendidosMes: montoVentasMes / 360,
+    ventasPuesto,
+    stockPuestoCajones,
+    cajonesTransfPuesto,
   }
 }
 
@@ -253,6 +295,31 @@ export default async function DashboardPage() {
           subtitle={data.cajaNeta >= 0 ? 'A favor (cobrar > pagar)' : 'En contra (pagar > cobrar)'}
           icon={Scale}
           color={data.cajaNeta >= 0 ? 'green' : 'red'}
+        />
+      </div>
+
+      {/* Puesto Mercado */}
+      <div className="grid grid-cols-3 gap-4">
+        <KPICard
+          title="Ventas del puesto"
+          value={formatearPeso(data.ventasPuesto)}
+          subtitle="Período actual"
+          icon={Store}
+          color="green"
+        />
+        <KPICard
+          title="Stock en el puesto"
+          value={data.stockPuestoCajones.toFixed(1)}
+          subtitle="cajones equiv. disponibles"
+          icon={Package}
+          color="blue"
+        />
+        <KPICard
+          title="Transferido al puesto"
+          value={data.cajonesTransfPuesto.toFixed(1)}
+          subtitle="cajones equiv. en el período"
+          icon={Truck}
+          color="slate"
         />
       </div>
 

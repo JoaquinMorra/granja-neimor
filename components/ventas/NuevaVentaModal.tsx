@@ -93,7 +93,9 @@ export default function NuevaVentaModal({ clientesExistentes, ventaEditar, onClo
     setForm((prev) => ({ ...prev, cliente: val }))
     if (val.length >= 2) {
       setClienteSugerencias(
-        clientesExistentes.filter((c) => c.toLowerCase().includes(val.toLowerCase())).slice(0, 5)
+        clientesExistentes
+          .filter((c) => c.toLowerCase().includes(val.toLowerCase()) && c.toLowerCase() !== 'mercado')
+          .slice(0, 5)
       )
     } else {
       setClienteSugerencias([])
@@ -111,6 +113,11 @@ export default function NuevaVentaModal({ clientesExistentes, ventaEditar, onClo
     setError(null)
 
     if (!form.cliente.trim()) { setError('El cliente es obligatorio.'); setLoading(false); return }
+    if (form.cliente.trim().toLowerCase() === 'mercado') {
+      setError('Las salidas al puesto se cargan en el módulo Mercado, no como venta.')
+      setLoading(false)
+      return
+    }
     if (!form.cantidad || parseFloat(form.cantidad) <= 0) { setError('La cantidad debe ser mayor a 0.'); setLoading(false); return }
     if (!precioManual || parseFloat(precioManual) <= 0) { setError('El precio unitario es obligatorio.'); setLoading(false); return }
     if (requiereMotivo && !form.motivo_precio.trim()) {

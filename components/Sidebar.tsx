@@ -15,6 +15,7 @@ import {
   Truck,
   Package,
   BarChart3,
+  Store,
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -27,6 +28,7 @@ const NAV_ITEMS = [
   { href: '/proveedores', label: 'Proveedores', icon: Truck },
   { href: '/productos', label: 'Productos', icon: Package },
   { href: '/costos', label: 'Costos', icon: BarChart3 },
+  { href: '/mercado', label: 'Mercado', icon: Store },
 ]
 
 export default function Sidebar() {

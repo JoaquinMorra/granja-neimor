@@ -78,6 +78,7 @@ export const TIPOS_VENTA: TipoVenta[] = [
 export const CATEGORIAS_INGRESO = [
   'Venta granja',
   'Ventas mercado',
+  'Ventas Puesto',
   'USD',
   'Otros',
 ]

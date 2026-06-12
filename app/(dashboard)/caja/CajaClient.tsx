@@ -280,6 +280,7 @@ export default function CajaClient({
   const [modalOpen, setModalOpen] = useState(false)
   const [movimientoEditando, setMovimientoEditando] = useState<Caja | null>(null)
   const [filtroTipo, setFiltroTipo] = useState('todos')
+  const [filtroOrigen, setFiltroOrigen] = useState('todos')
 
   async function handleEliminar(id: string) {
     if (!confirm('¿Eliminár este movimiento?')) return
@@ -290,6 +291,7 @@ export default function CajaClient({
 
   // KPIs del período seleccionado
   const totalIngresos = movimientos.filter((m) => m.tipo === 'INGRESO').reduce((s, m) => s + m.monto, 0)
+  const ingresosPuesto = movimientos.filter((m) => m.tipo === 'INGRESO' && m.origen === 'puesto').reduce((s, m) => s + m.monto, 0)
   const totalEgresos  = movimientos.filter((m) => m.tipo === 'EGRESO').reduce((s, m) => s + m.monto, 0)
   const saldoMes = totalIngresos - totalEgresos
 
@@ -319,6 +321,7 @@ export default function CajaClient({
 
   const movimientosFiltrados = movimientos.filter((m) => {
     if (filtroTipo !== 'todos' && m.tipo !== filtroTipo) return false
+    if (filtroOrigen !== 'todos' && m.origen !== filtroOrigen) return false
     return true
   })
 
@@ -368,6 +371,9 @@ export default function CajaClient({
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Ingresos del período</p>
             </div>
             <p className="text-2xl font-bold text-green-800">{formatearPeso(totalIngresos)}</p>
+            {ingresosPuesto > 0 && (
+              <p className="text-xs text-slate-500 mt-1">Del puesto: <span className="font-semibold text-green-700">{formatearPeso(ingresosPuesto)}</span></p>
+            )}
           </div>
           <div className="card p-4">
             <div className="flex items-center gap-2 mb-1">
@@ -508,6 +514,15 @@ export default function CajaClient({
               <option value="INGRESO">Solo ingresos</option>
               <option value="EGRESO">Solo egresos</option>
             </select>
+            <select
+              value={filtroOrigen}
+              onChange={(e) => setFiltroOrigen(e.target.value)}
+              className="input w-auto text-sm"
+            >
+              <option value="todos">Todos los orígenes</option>
+              <option value="granja">Granja</option>
+              <option value="puesto">Puesto</option>
+            </select>
           </div>
         </div>
         <div className="overflow-x-auto">
@@ -517,6 +532,7 @@ export default function CajaClient({
                 <th className="table-th">Fecha</th>
                 <th className="table-th">Tipo</th>
                 <th className="table-th">Medio</th>
+                <th className="table-th">Origen</th>
                 <th className="table-th">Categoría</th>
                 <th className="table-th">Descripción</th>
                 <th className="table-th text-right">Monto</th>
@@ -526,7 +542,7 @@ export default function CajaClient({
             <tbody className="divide-y divide-slate-50">
               {movimientosFiltrados.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="table-td text-center text-slate-400 py-8">Sin movimientos</td>
+                  <td colSpan={8} className="table-td text-center text-slate-400 py-8">Sin movimientos</td>
                 </tr>
               ) : (
                 movimientosFiltrados.map((m) => (
@@ -540,6 +556,11 @@ export default function CajaClient({
                     <td className="table-td">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${m.medio_pago === 'TRANSFERENCIA' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-700'}`}>
                         {m.medio_pago === 'TRANSFERENCIA' ? 'Transf.' : 'Efectivo'}
+                      </span>
+                    </td>
+                    <td className="table-td">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${m.origen === 'puesto' ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600'}`}>
+                        {m.origen === 'puesto' ? 'Puesto' : 'Granja'}
                       </span>
                     </td>
                     <td className="table-td">{m.categoria}</td>

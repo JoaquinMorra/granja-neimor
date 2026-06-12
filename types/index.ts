@@ -72,6 +72,8 @@ export type TipoCaja = 'INGRESO' | 'EGRESO'
 
 export type MedioPagoCaja = 'EFECTIVO' | 'TRANSFERENCIA'
 
+export type OrigenCaja = 'granja' | 'puesto'
+
 export type Caja = {
   id: string
   fecha: string
@@ -80,6 +82,8 @@ export type Caja = {
   descripcion: string | null
   monto: number
   medio_pago: MedioPagoCaja
+  origen: OrigenCaja
+  puesto_cierre_id: string | null
   created_at: string
 }
 
@@ -200,6 +204,43 @@ export type ClienteConfig = {
   cliente: string
   limite_credito: number | null
   updated_at: string
+}
+
+// ============================================================
+// Puesto Mercado
+// ============================================================
+export type PuestoTransferenciaItem = {
+  id: string
+  transferencia_id: string
+  producto_id: string
+  cantidad: number
+}
+
+export type PuestoTransferencia = {
+  id: string
+  fecha: string
+  notas: string | null
+  created_at: string
+  deleted_at: string | null
+}
+
+export type PuestoCierreItem = {
+  id: string
+  cierre_id: string
+  producto_id: string
+  cantidad: number
+  precio_unitario: number
+  total_linea: number
+}
+
+export type PuestoCierre = {
+  id: string
+  fecha: string
+  notas: string | null
+  total_efectivo: number
+  total_transferencia: number
+  created_at: string
+  deleted_at: string | null
 }
 
 export type PosturaRango = { min: number; max: number }
