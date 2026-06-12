@@ -152,12 +152,22 @@ async function getDashboardData() {
     return { fecha, coloradas, blancas }
   })
 
+  const cajEquiv = (cant: number, upCaja: number) => cant * upCaja / 360
+
   // Ventas últimos 6 períodos contables (6 al 5), en cajones
+  // Combina ventas granja (histórico + mayoristas) + cierres del puesto
   const mesesVentas = periodosVentas.map(({ inicio, fin, label }) => {
-    const cajones = (ventasMensuales ?? [])
+    const cajonesGranja = (ventasMensuales ?? [])
       .filter((v) => v.fecha >= inicio && v.fecha <= fin)
       .reduce((s, v) => s + (v.equivalente_huevos ?? 0) / 360, 0)
-    return { mes: label, cajones: Math.round(cajones * 10) / 10 }
+
+    const cajonesPuesto = (puestoCierres ?? [])
+      .filter((c: any) => c.fecha >= inicio && c.fecha <= fin)
+      .reduce((s: number, c: any) =>
+        s + (c.items as any[]).reduce((si: number, item: any) =>
+          si + cajEquiv(item.cantidad, item.producto?.unidades_por_caja ?? 360), 0), 0)
+
+    return { mes: label, cajones: Math.round((cajonesGranja + cajonesPuesto) * 10) / 10 }
   })
 
   const alertasCount = posturaGalpones.filter((p) => p.alerta).length
@@ -175,7 +185,6 @@ async function getDashboardData() {
   const cajaNeta = cuentasPorCobrar - deudaProveedores
 
   // KPIs del puesto mercado
-  const cajEquiv = (cant: number, upCaja: number) => cant * upCaja / 360
   const ventasPuesto = (puestoCierres ?? [])
     .filter((c: any) => c.fecha >= periodoActual.inicio && c.fecha <= periodoActual.fin)
     .reduce((s: number, c: any) => s + c.total_efectivo + c.total_transferencia, 0)
