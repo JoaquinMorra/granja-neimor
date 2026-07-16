@@ -243,6 +243,57 @@ export type PuestoCierre = {
   deleted_at: string | null
 }
 
+// ============================================================
+// Cierres de Mes
+// ============================================================
+export type CierreMensual = {
+  id: string
+  anio: number
+  mes: number
+  fecha_inicio: string
+  fecha_fin: string
+  fecha_cierre: string
+  cerrado_por: string | null
+  total_ventas: number
+  total_egresos_caja: number
+  total_ingresos_caja_otros: number
+  total_compras_proveedor: number
+  costo_produccion_estandar: number
+  total_huevos: number
+  total_cajones_equivalentes: number
+  ganancia_neta: number
+  detalle: {
+    ventas_por_producto?: { producto: string; cantidad: number; monto: number }[]
+    ventas_por_cliente?: { cliente: string; monto: number }[]
+    egresos_por_categoria?: { categoria: string; monto: number }[]
+    compras_por_proveedor?: { proveedor: string; monto: number }[]
+    produccion_por_galpon?: { galpon: string; huevos: number; cajones: number }[]
+    costo_produccion_real?: {
+      alimento_real: number
+      sueldos_real: number
+      maples_real: number
+      otros_real: number
+      amortizacion_real: number
+      costo_total: number
+      cajones_reales: number
+      costo_por_cajon: number
+    }
+    comparativo_mes_anterior?: {
+      ventas_pct: number | null
+      egresos_pct: number | null
+      produccion_pct: number | null
+      ganancia_pct: number | null
+    } | null
+  }
+  historico_costos_id: string | null
+  observaciones: string | null
+  notas_ventas: string | null
+  notas_gastos: string | null
+  notas_produccion: string | null
+  pdf_path: string | null
+  pdf_generado_en: string | null
+}
+
 export type PosturaRango = { min: number; max: number }
 
 export type DashboardKPIs = {
