@@ -11,6 +11,7 @@ export default async function ConfiguracionCostosPage() {
       .select('total, kg_alimento, fecha')
       .not('kg_alimento', 'is', null)
       .gt('kg_alimento', 0)
+      .is('anulada_en', null)
       .order('fecha', { ascending: false })
       .limit(1)
       .maybeSingle(),

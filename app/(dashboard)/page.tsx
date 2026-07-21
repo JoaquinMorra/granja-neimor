@@ -72,7 +72,7 @@ async function getDashboardData() {
       .select('fecha, equivalente_huevos')
       .gte('fecha', periodosVentas[0].inicio)
       .order('fecha'),
-    supabase.from('compras_proveedor').select('total, monto_pagado'),
+    supabase.from('compras_proveedor').select('total, monto_pagado').is('anulada_en', null),
     supabase
       .from('puesto_cierres')
       .select('fecha, total_efectivo, total_transferencia, items:puesto_cierre_items(cantidad, producto:productos(unidades_por_caja))')

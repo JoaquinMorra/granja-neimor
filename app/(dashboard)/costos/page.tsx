@@ -54,7 +54,8 @@ export default async function CostosPage() {
       .from('compras_proveedor')
       .select('kg_alimento, proveedor:proveedores(tipo)')
       .gte('fecha', periodoInfo.inicio)
-      .lte('fecha', hoy),
+      .lte('fecha', hoy)
+      .is('anulada_en', null),
     supabase
       .from('productos')
       .select('id, codigo, nombre, precio_mayorista, precio_minorista, unidades_por_caja')
@@ -83,7 +84,8 @@ export default async function CostosPage() {
         .from('compras_proveedor')
         .select('total, proveedor:proveedores(tipo)')
         .gte('fecha', periodoAnterior.inicio)
-        .lte('fecha', periodoAnterior.fin),
+        .lte('fecha', periodoAnterior.fin)
+        .is('anulada_en', null),
       supabase
         .from('produccion_diaria')
         .select('huevos')

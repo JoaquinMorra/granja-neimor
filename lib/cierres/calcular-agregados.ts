@@ -126,7 +126,8 @@ export async function calcularAgregadosCierre(
       .select('id, fecha, descripcion, cantidad, unidad, total, estado, cierre_id, proveedor:proveedores(nombre, tipo)')
       .gte('fecha', inicio)
       .lte('fecha', fin)
-      .is('cierre_id', null),
+      .is('cierre_id', null)
+      .is('anulada_en', null),
     supabase
       .from('produccion_diaria')
       .select('id, fecha, huevos, muertes, cierre_id, lote:lotes(nombre, galpon:galpones(nombre))')

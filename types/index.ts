@@ -118,6 +118,10 @@ export type CompraProveedor = {
   kg_alimento: number | null
   notas: string | null
   created_at: string
+  cierre_id: string | null
+  anulada_en: string | null
+  anulada_por: string | null
+  motivo_anulacion: string | null
 }
 
 export type MetodoPagoProveedor = 'efectivo' | 'transferencia' | 'mixto'

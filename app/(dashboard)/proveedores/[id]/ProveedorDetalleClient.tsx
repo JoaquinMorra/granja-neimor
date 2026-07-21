@@ -6,7 +6,8 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import type { Proveedor, CompraProveedor, PagoProveedor, EstadoCompra, MetodoPagoProveedor } from '@/types'
 import { formatearPeso, formatearFecha, hoyISO, CATEGORIA_CAJA_POR_TIPO_PROVEEDOR } from '@/lib/utils'
-import { ArrowLeft, Plus, X, CheckCircle, AlertCircle } from 'lucide-react'
+import { puedeEliminarCompra } from '@/lib/compras/puede-eliminar'
+import { ArrowLeft, Plus, X, CheckCircle, AlertCircle, Trash2, Ban, Lock, Eye } from 'lucide-react'
 
 type Props = {
   proveedor: Proveedor
@@ -367,20 +368,166 @@ function NuevoPagoModal({
   )
 }
 
+// ─── Modal Confirmar eliminar/anular compra ────────────────────
+function ConfirmarAccionCompraModal({
+  compra,
+  proveedor,
+  accion,
+  loading,
+  onClose,
+  onConfirmar,
+}: {
+  compra: CompraProveedor
+  proveedor: Proveedor
+  accion: 'eliminar' | 'anular'
+  loading: boolean
+  onClose: () => void
+  onConfirmar: (motivo: string) => void
+}) {
+  const [motivo, setMotivo] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const saldo = compra.total - compra.monto_pagado
+
+  function handleConfirmar() {
+    if (accion === 'anular' && !motivo.trim()) {
+      setError('El motivo de anulación es obligatorio.')
+      return
+    }
+    onConfirmar(motivo.trim())
+  }
+
+  return (
+    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal-content max-w-sm">
+        <div className="p-6">
+          <h2 className="text-lg font-semibold text-slate-800 mb-2">
+            ¿Estás seguro que querés {accion} esta compra?
+          </h2>
+          <div className="text-sm text-slate-600 space-y-1 mb-3">
+            <p>Proveedor: <span className="font-medium text-slate-800">{proveedor.nombre}</span></p>
+            <p>Fecha: <span className="font-medium text-slate-800">{formatearFecha(compra.fecha)}</span></p>
+            <p>Monto: <span className="font-medium text-slate-800">{formatearPeso(compra.total)}</span></p>
+          </div>
+          <div className="bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 text-xs text-amber-800 mb-4">
+            Esta acción va a reducir la deuda con {proveedor.nombre} en {formatearPeso(saldo)}.
+          </div>
+          {accion === 'anular' && (
+            <div className="mb-4">
+              <label className="label">Motivo de anulación</label>
+              <textarea value={motivo}
+                onChange={(e) => { setMotivo(e.target.value); setError(null) }}
+                className="input resize-none" rows={2} required />
+            </div>
+          )}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-700 mb-4">{error}</div>
+          )}
+          <div className="flex gap-3">
+            <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancelar</button>
+            <button type="button" onClick={handleConfirmar} disabled={loading}
+              className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg px-4 py-2 transition-colors disabled:opacity-50 capitalize">
+              {loading ? `${accion === 'eliminar' ? 'Eliminando' : 'Anulando'}...` : 'Confirmar'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Modal Ver motivo de anulación ──────────────────────────────
+function VerMotivoModal({ compra, onClose }: { compra: CompraProveedor; onClose: () => void }) {
+  return (
+    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal-content max-w-sm">
+        <div className="flex items-center justify-between p-6 border-b border-slate-100">
+          <h2 className="text-lg font-semibold text-slate-800">Motivo de anulación</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+        </div>
+        <div className="p-6 space-y-2">
+          <p className="text-xs text-slate-500">
+            Anulada el {compra.anulada_en ? formatearFecha(compra.anulada_en) : '—'}
+          </p>
+          <p className="text-sm text-slate-700">{compra.motivo_anulacion || 'Sin motivo registrado.'}</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Página principal ─────────────────────────────────────────
 export default function ProveedorDetalleClient({ proveedor, compras, pagos }: Props) {
+  const router = useRouter()
   const [tab, setTab] = useState<'compras' | 'pagos'>('compras')
   const [filtroEstado, setFiltroEstado] = useState<string>('todos')
+  const [mostrarAnuladas, setMostrarAnuladas] = useState(false)
   const [modalCompra, setModalCompra] = useState(false)
   const [modalPago, setModalPago] = useState(false)
+  const [accionCompra, setAccionCompra] = useState<{ compra: CompraProveedor; accion: 'eliminar' | 'anular' } | null>(null)
+  const [verMotivo, setVerMotivo] = useState<CompraProveedor | null>(null)
+  const [loadingAccion, setLoadingAccion] = useState(false)
 
-  const saldoPendiente = compras.reduce((s, c) => s + (c.total - c.monto_pagado), 0)
-  const totalComprado = compras.reduce((s, c) => s + c.total, 0)
-  const totalPagado = compras.reduce((s, c) => s + c.monto_pagado, 0)
+  const comprasActivas = compras.filter((c) => !c.anulada_en)
+  const saldoPendiente = comprasActivas.reduce((s, c) => s + (c.total - c.monto_pagado), 0)
+  const totalComprado = comprasActivas.reduce((s, c) => s + c.total, 0)
+  const totalPagado = comprasActivas.reduce((s, c) => s + c.monto_pagado, 0)
 
-  const comprasFiltradas = compras.filter((c) =>
-    filtroEstado === 'todos' ? true : c.estado === filtroEstado
-  )
+  function tienePagosAsociados(compraId: string) {
+    return pagos.some((p) => p.compras_asociadas?.includes(compraId))
+  }
+
+  const comprasFiltradas = compras
+    .filter((c) => (filtroEstado === 'todos' ? true : c.estado === filtroEstado))
+    .filter((c) => (mostrarAnuladas ? true : !c.anulada_en))
+    .sort((a, b) => {
+      if (!!a.anulada_en !== !!b.anulada_en) return a.anulada_en ? 1 : -1
+      return new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
+    })
+
+  async function handleEliminarCompra() {
+    if (!accionCompra) return
+    const { compra } = accionCompra
+    setLoadingAccion(true)
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    await supabase.from('auditoria_compras_proveedor').insert({
+      compra_id: compra.id,
+      accion: 'ELIMINAR',
+      user_id: user?.id ?? null,
+      valores_antes: compra,
+      valores_despues: null,
+    })
+    await supabase.from('compras_proveedor').delete().eq('id', compra.id)
+
+    setLoadingAccion(false)
+    setAccionCompra(null)
+    router.refresh()
+  }
+
+  async function handleAnularCompra(motivo: string) {
+    if (!accionCompra) return
+    const { compra } = accionCompra
+    setLoadingAccion(true)
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    const anuladaEn = new Date().toISOString()
+
+    await supabase.from('auditoria_compras_proveedor').insert({
+      compra_id: compra.id,
+      accion: 'ANULAR',
+      user_id: user?.id ?? null,
+      valores_antes: compra,
+      valores_despues: { anulada_en: anuladaEn, anulada_por: user?.id ?? null, motivo_anulacion: motivo },
+    })
+    await supabase.from('compras_proveedor')
+      .update({ anulada_en: anuladaEn, anulada_por: user?.id ?? null, motivo_anulacion: motivo })
+      .eq('id', compra.id)
+
+    setLoadingAccion(false)
+    setAccionCompra(null)
+    router.refresh()
+  }
 
   return (
     <div className="space-y-6">
@@ -455,6 +602,12 @@ export default function ProveedorDetalleClient({ proveedor, compras, pagos }: Pr
         <div className="card overflow-hidden">
           <div className="p-4 border-b border-slate-100 flex items-center gap-3">
             <h3 className="font-semibold text-slate-800 mr-auto">Compras</h3>
+            <label className="flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer">
+              <input type="checkbox" checked={mostrarAnuladas}
+                onChange={(e) => setMostrarAnuladas(e.target.checked)}
+                className="accent-blue-600" />
+              Mostrar anuladas
+            </label>
             <select value={filtroEstado}
               onChange={(e) => setFiltroEstado(e.target.value)}
               className="input w-auto text-sm">
@@ -477,39 +630,74 @@ export default function ProveedorDetalleClient({ proveedor, compras, pagos }: Pr
                   <th className="table-th text-right">Saldo</th>
                   <th className="table-th">Estado</th>
                   <th className="table-th">Venc.</th>
+                  <th className="table-th text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {comprasFiltradas.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="table-td text-center text-slate-400 py-8">Sin compras</td>
+                    <td colSpan={10} className="table-td text-center text-slate-400 py-8">Sin compras</td>
                   </tr>
                 ) : (
-                  comprasFiltradas.map((c) => (
-                    <tr key={c.id} className="hover:bg-slate-50">
-                      <td className="table-td whitespace-nowrap">{formatearFecha(c.fecha)}</td>
-                      <td className="table-td">
-                        <p className="font-medium text-slate-800">{c.descripcion}</p>
-                        {c.notas && <p className="text-xs text-slate-400">{c.notas}</p>}
-                        {c.kg_alimento && <p className="text-xs text-amber-600">{c.kg_alimento} kg alimento</p>}
-                      </td>
-                      <td className="table-td text-right">{c.cantidad} {c.unidad}</td>
-                      <td className="table-td text-right">{formatearPeso(c.precio_unitario)}</td>
-                      <td className="table-td text-right font-semibold">{formatearPeso(c.total)}</td>
-                      <td className="table-td text-right text-green-700">{formatearPeso(c.monto_pagado)}</td>
-                      <td className="table-td text-right text-red-700 font-semibold">
-                        {formatearPeso(c.total - c.monto_pagado)}
-                      </td>
-                      <td className="table-td">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${ESTADO_STYLES[c.estado]}`}>
-                          {c.estado}
-                        </span>
-                      </td>
-                      <td className="table-td text-xs text-slate-500">
-                        {c.vencimiento ? formatearFecha(c.vencimiento) : '—'}
-                      </td>
-                    </tr>
-                  ))
+                  comprasFiltradas.map((c) => {
+                    const anulada = !!c.anulada_en
+                    const decision = puedeEliminarCompra(c, tienePagosAsociados(c.id))
+                    return (
+                      <tr key={c.id} className={`hover:bg-slate-50 ${anulada ? 'opacity-50' : ''}`}>
+                        <td className={`table-td whitespace-nowrap ${anulada ? 'line-through' : ''}`}>{formatearFecha(c.fecha)}</td>
+                        <td className="table-td">
+                          <p className={`font-medium text-slate-800 ${anulada ? 'line-through' : ''}`}>{c.descripcion}</p>
+                          {c.notas && <p className="text-xs text-slate-400">{c.notas}</p>}
+                          {c.kg_alimento && <p className="text-xs text-amber-600">{c.kg_alimento} kg alimento</p>}
+                        </td>
+                        <td className={`table-td text-right ${anulada ? 'line-through' : ''}`}>{c.cantidad} {c.unidad}</td>
+                        <td className={`table-td text-right ${anulada ? 'line-through' : ''}`}>{formatearPeso(c.precio_unitario)}</td>
+                        <td className={`table-td text-right font-semibold ${anulada ? 'line-through' : ''}`}>{formatearPeso(c.total)}</td>
+                        <td className="table-td text-right text-green-700">{formatearPeso(c.monto_pagado)}</td>
+                        <td className="table-td text-right text-red-700 font-semibold">
+                          {formatearPeso(c.total - c.monto_pagado)}
+                        </td>
+                        <td className="table-td">
+                          {anulada ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-200 text-slate-600">
+                              Anulada
+                            </span>
+                          ) : (
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${ESTADO_STYLES[c.estado]}`}>
+                              {c.estado}
+                            </span>
+                          )}
+                        </td>
+                        <td className="table-td text-xs text-slate-500">
+                          {c.vencimiento ? formatearFecha(c.vencimiento) : '—'}
+                        </td>
+                        <td className="table-td">
+                          <div className="flex items-center gap-1 justify-end">
+                            {anulada ? (
+                              <button onClick={() => setVerMotivo(c)}
+                                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition-colors" title="Ver motivo">
+                                <Eye size={14} />
+                              </button>
+                            ) : decision.accion === 'bloqueada' ? (
+                              <span title={decision.motivoBloqueo}>
+                                <Lock size={14} className="text-slate-300" />
+                              </span>
+                            ) : decision.accion === 'eliminar' ? (
+                              <button onClick={() => setAccionCompra({ compra: c, accion: 'eliminar' })}
+                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" title="Eliminar">
+                                <Trash2 size={14} />
+                              </button>
+                            ) : (
+                              <button onClick={() => setAccionCompra({ compra: c, accion: 'anular' })}
+                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" title="Anular">
+                                <Ban size={14} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })
                 )}
               </tbody>
             </table>
@@ -565,6 +753,19 @@ export default function ProveedorDetalleClient({ proveedor, compras, pagos }: Pr
       )}
       {modalPago && (
         <NuevoPagoModal proveedor={proveedor} compras={compras} onClose={() => setModalPago(false)} />
+      )}
+      {accionCompra && (
+        <ConfirmarAccionCompraModal
+          compra={accionCompra.compra}
+          proveedor={proveedor}
+          accion={accionCompra.accion}
+          loading={loadingAccion}
+          onClose={() => setAccionCompra(null)}
+          onConfirmar={accionCompra.accion === 'eliminar' ? handleEliminarCompra : handleAnularCompra}
+        />
+      )}
+      {verMotivo && (
+        <VerMotivoModal compra={verMotivo} onClose={() => setVerMotivo(null)} />
       )}
     </div>
   )

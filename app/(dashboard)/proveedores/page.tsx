@@ -7,7 +7,7 @@ export default async function ProveedoresPage() {
 
   const [{ data: proveedores }, { data: compras }, { data: pagos }] = await Promise.all([
     supabase.from('proveedores').select('*').order('nombre'),
-    supabase.from('compras_proveedor').select('proveedor_id, total, monto_pagado, fecha, estado'),
+    supabase.from('compras_proveedor').select('proveedor_id, total, monto_pagado, fecha, estado').is('anulada_en', null),
     supabase.from('pagos_proveedor').select('proveedor_id, fecha').order('fecha', { ascending: false }),
   ])
 
