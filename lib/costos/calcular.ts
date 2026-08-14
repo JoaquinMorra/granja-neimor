@@ -22,6 +22,9 @@ export const EXCLUIR_OTROS = new Set([
   'Compra-venta mercado',
   'Compra USD',
   'Pago inversión',
+  'Impuestos',
+  'Guanero',
+  'Compra Pollas',
 ])
 
 export function calcularGallinasPorTipo(

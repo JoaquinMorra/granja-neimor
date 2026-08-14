@@ -108,6 +108,9 @@ export const CATEGORIAS_EGRESO = [
   'Compra USD',
   'Pago inversión',
   'Mantenimiento',
+  'Impuestos',
+  'Guanero',
+  'Compra Pollas',
   'Otros',
 ]
 
