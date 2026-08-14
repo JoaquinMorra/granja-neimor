@@ -14,7 +14,6 @@ import {
   X,
   Truck,
   Package,
-  BarChart3,
   Store,
   Archive,
 } from 'lucide-react'
@@ -28,7 +27,12 @@ const NAV_ITEMS = [
   { href: '/galpones', label: 'Galpones', icon: Building2 },
   { href: '/proveedores', label: 'Proveedores', icon: Truck },
   { href: '/productos', label: 'Productos', icon: Package },
-  { href: '/costos', label: 'Costos', icon: BarChart3 },
+  // Costos: oculta del menú a pedido de Joaco (no confía en los números,
+  // calcula el costo del huevo en Excel). El código y la ruta /costos
+  // siguen enteros: lib/costos/calcular.ts es dependencia dura de Cierres
+  // de Mes, así que no se toca. Para volver: descomentar esta línea y
+  // reagregar BarChart3 al import de lucide-react de arriba.
+  // { href: '/costos', label: 'Costos', icon: BarChart3 },
   { href: '/mercado', label: 'Mercado', icon: Store },
   { href: '/cierres', label: 'Cierres de Mes', icon: Archive },
 ]
