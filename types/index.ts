@@ -19,8 +19,23 @@ export type Lote = {
 export type LoteConCalculos = Lote & {
   gallinas_actuales: number
   total_muertes: number
+  total_vendidas: number
   edad_semanas: number | null
   galpon?: Galpon
+}
+
+export type VentaGallinas = {
+  id: string
+  lote_id: string
+  fecha: string
+  cantidad: number
+  precio_unitario: number
+  monto_total: number
+  observaciones: string | null
+  caja_id: string | null
+  cierre_id: string | null
+  created_at: string
+  created_by: string | null
 }
 
 export type ProduccionDiaria = {

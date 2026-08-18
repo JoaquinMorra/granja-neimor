@@ -4,10 +4,11 @@ import GalponesClient from './GalponesClient'
 export default async function GalponesPage() {
   const supabase = await createClient()
 
-  const [{ data: galpones }, { data: lotes }, { data: configRaw }] = await Promise.all([
+  const [{ data: galpones }, { data: lotes }, { data: configRaw }, { data: ventasGallinas }] = await Promise.all([
     supabase.from('galpones').select('*').order('orden'),
     supabase.from('gallinas_actuales').select('*, galpon:galpones(*)').order('nombre'),
     supabase.from('config_costos').select('consumo_coloradas_g_dia, consumo_blancas_g_dia').limit(1).single(),
+    supabase.from('ventas_gallinas').select('*').order('fecha', { ascending: false }),
   ])
 
   return (
@@ -16,6 +17,7 @@ export default async function GalponesPage() {
       lotes={lotes ?? []}
       consumoColoradasGDia={configRaw?.consumo_coloradas_g_dia ?? 120}
       consumoBlancasGDia={configRaw?.consumo_blancas_g_dia ?? 113}
+      ventasGallinas={ventasGallinas ?? []}
     />
   )
 }
