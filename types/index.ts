@@ -83,6 +83,28 @@ export type Venta = {
   motivo_precio: string | null
 }
 
+export type MetodoPagoCliente = 'Efectivo' | 'Transferencia' | 'Cheque' | 'Mercado Pago' | 'Otro'
+
+export type Pago = {
+  id: string
+  cliente: string
+  fecha_pago: string
+  monto: number
+  metodo: MetodoPagoCliente
+  referencia: string | null
+  notas: string | null
+  cierre_id: string | null
+  created_at: string
+  created_by: string | null
+}
+
+export type PagoVenta = {
+  id: string
+  pago_id: string
+  venta_id: string
+  monto_asignado: number
+}
+
 export type TipoCaja = 'INGRESO' | 'EGRESO'
 
 export type MedioPagoCaja = 'EFECTIVO' | 'TRANSFERENCIA'
