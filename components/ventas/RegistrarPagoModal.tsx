@@ -58,11 +58,18 @@ export default function RegistrarPagoModal({ cliente, ventaInicial, onClose }: P
   const monto = parseFloat(form.monto || '0')
   const totalAsignado = Object.values(asignaciones).reduce((s, v) => s + (parseFloat(v) || 0), 0)
 
+  // "Monto pagado" siempre refleja la suma de lo asignado: si el usuario baja
+  // lo que le aplica a una venta puntual (pagó menos de lo que debía), el
+  // total pagado tiene que bajar con él. Antes quedaban desincronizados y el
+  // pago se guardaba por el monto viejo (más alto) aunque se haya aplicado menos.
   function setAsignacion(ventaId: string, valor: string, maxDebe: number) {
     const num = parseFloat(valor)
     if (valor !== '' && (isNaN(num) || num < 0)) return
     if (num > maxDebe) valor = maxDebe.toString()
-    setAsignaciones((prev) => ({ ...prev, [ventaId]: valor }))
+    const nuevasAsignaciones = { ...asignaciones, [ventaId]: valor }
+    setAsignaciones(nuevasAsignaciones)
+    const total = Object.values(nuevasAsignaciones).reduce((s, v) => s + (parseFloat(v) || 0), 0)
+    setForm((p) => ({ ...p, monto: total > 0 ? total.toString() : p.monto }))
   }
 
   function aplicarAutomatico() {
@@ -76,12 +83,22 @@ export default function RegistrarPagoModal({ cliente, ventaInicial, onClose }: P
       restante -= aplicar
     }
     setAsignaciones(nuevo)
+    // Si el monto pagado era mayor a toda la deuda pendiente, no queda dónde
+    // aplicar la diferencia — se ajusta el monto a lo que realmente se pudo
+    // asignar, en vez de guardar un pago más grande que lo que cubre.
+    const totalAsignadoNuevo = Object.values(nuevo).reduce((s, v) => s + (parseFloat(v) || 0), 0)
+    if (Math.abs(totalAsignadoNuevo - monto) > 0.01) {
+      setForm((p) => ({ ...p, monto: totalAsignadoNuevo.toString() }))
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!monto || monto <= 0) { setError('El monto pagado debe ser mayor a 0.'); return }
-    if (totalAsignado > monto + 0.01) { setError('Lo asignado a ventas no puede superar el monto pagado.'); return }
+    if (Math.abs(totalAsignado - monto) > 0.01) {
+      setError('El monto pagado no coincide con lo asignado a las ventas. Usá "Aplicar automático" o ajustá los montos para que coincidan.')
+      return
+    }
 
     const asignacionesArray = Object.entries(asignaciones)
       .map(([venta_id, v]) => ({ venta_id, monto_asignado: parseFloat(v || '0') }))
