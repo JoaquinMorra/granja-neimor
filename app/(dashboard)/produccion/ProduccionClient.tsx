@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useRef, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { createClient } from '@/lib/supabase/client'
 import CargaProduccionModal from '@/components/produccion/CargaProduccionModal'
@@ -9,7 +10,7 @@ import type { Galpon, LoteConCalculos, ProduccionDiaria } from '@/types'
 import { formatearFecha, getPosturaEsperada, hoyISO } from '@/lib/utils'
 import {
   Plus, Egg, Filter, AlertTriangle, Edit, Trash2,
-  ChevronDown, ChevronUp, TrendingUp, TrendingDown, Minus, X,
+  ChevronDown, ChevronUp, TrendingUp, TrendingDown, Minus, X, BarChart3,
 } from 'lucide-react'
 
 // ── Modales inline ─────────────────────────────────────────────────────────────
@@ -285,11 +286,18 @@ export default function ProduccionClient({ galpones, lotes, produccionReciente }
           <h1 className="text-2xl font-bold text-slate-900">Producción</h1>
           <p className="text-sm text-slate-500 mt-0.5">Registro diario de huevos y muertes</p>
         </div>
-        <button onClick={() => setModalOpen(true)} className="btn-primary flex items-center gap-2">
-          <Plus size={18} />
-          <span className="hidden sm:inline">Cargar producción</span>
-          <span className="sm:hidden">Cargar</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <Link href="/produccion/reporte" className="btn-secondary flex items-center gap-2">
+            <BarChart3 size={18} />
+            <span className="hidden sm:inline">Reporte por período</span>
+            <span className="sm:hidden">Reporte</span>
+          </Link>
+          <button onClick={() => setModalOpen(true)} className="btn-primary flex items-center gap-2">
+            <Plus size={18} />
+            <span className="hidden sm:inline">Cargar producción</span>
+            <span className="sm:hidden">Cargar</span>
+          </button>
+        </div>
       </div>
 
       {/* Alerta: fechas futuras */}
