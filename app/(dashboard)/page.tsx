@@ -66,7 +66,8 @@ async function getDashboardData() {
       .lte('fecha', hoyISO),
     supabase.from('ventas').select('monto_cobrado').eq('fecha', hoyISO),
     supabase.from('ventas').select('equivalente_huevos, tipo_venta').gte('fecha', mesInicio).lte('fecha', mesFin),
-    supabase.from('ventas').select('monto_debe').neq('estado', 'PAGO'),
+    // vista_saldos_clientes: fuente única del saldo por cliente (misma que usa /ventas y /clientes).
+    supabase.from('vista_saldos_clientes').select('saldo'),
     supabase
       .from('ventas')
       .select('fecha, equivalente_huevos')
@@ -101,7 +102,7 @@ async function getDashboardData() {
   // Ventas hoy y mes
   const montoVentasHoy = (ventasHoy ?? []).reduce((s, v) => s + (v.monto_cobrado ?? 0), 0)
   const montoVentasMes = (ventasMes ?? []).reduce((s, v) => s + (v.equivalente_huevos ?? 0), 0)
-  const deudaTotal = (deudas ?? []).reduce((s, v) => s + (v.monto_debe ?? 0), 0)
+  const deudaTotal = (deudas ?? []).reduce((s, v) => s + (v.saldo ?? 0), 0)
 
   // Postura promedio por galpón
   const posturaGalpones = (galpones ?? []).map((g) => {

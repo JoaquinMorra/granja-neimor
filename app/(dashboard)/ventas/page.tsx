@@ -31,6 +31,7 @@ export default async function VentasPage({
     { data: productos },
     { data: preciosEspeciales },
     { data: clientesConfig },
+    { data: saldosClientes },
   ] = await Promise.all([
     supabase
       .from('ventas')
@@ -51,6 +52,8 @@ export default async function VentasPage({
       .lte('vigente_desde', hoy)
       .or(`vigente_hasta.is.null,vigente_hasta.gte.${hoy}`),
     supabase.from('clientes_config').select('*'),
+    // vista_saldos_clientes: sin límite de filas, fuente única del saldo por cliente.
+    supabase.from('vista_saldos_clientes').select('*'),
   ])
 
   const clientesUnicos = [...new Set((clientes ?? []).map((c) => c.cliente))].sort()
@@ -66,6 +69,7 @@ export default async function VentasPage({
       productos={productos ?? []}
       preciosEspeciales={preciosEspeciales ?? []}
       clientesConfig={clientesConfig ?? []}
+      saldosClientes={saldosClientes ?? []}
     />
   )
 }

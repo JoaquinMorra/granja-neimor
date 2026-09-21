@@ -105,6 +105,19 @@ export type PagoVenta = {
   monto_asignado: number
 }
 
+// Fila de la vista SQL vista_saldos_clientes — fuente única del saldo por
+// cliente (sin límite de filas, a diferencia de traer `ventas` recortado).
+export type SaldoCliente = {
+  cliente: string
+  ultima_venta: string | null
+  cantidad_ventas: number
+  cantidad_ventas_pendientes: number
+  fecha_venta_pendiente_mas_vieja: string | null
+  total_facturado: number
+  total_cobrado: number
+  saldo: number
+}
+
 export type TipoCaja = 'INGRESO' | 'EGRESO'
 
 export type MedioPagoCaja = 'EFECTIVO' | 'TRANSFERENCIA'

@@ -10,8 +10,21 @@ export async function GET(_request: Request, { params }: { params: Promise<{ cli
 
   const [{ data: ventas }, { data: pagos }] = await Promise.all([
     supabase.from('ventas').select('fecha, tipo_venta, cantidad, monto_cobrado, monto_debe').eq('cliente', cliente),
-    supabase.from('pagos').select('fecha_pago, metodo, referencia, monto').eq('cliente', cliente),
+    supabase.from('pagos').select('id, fecha_pago, metodo, referencia, monto').eq('cliente', cliente),
   ])
+
+  const pagosIds = (pagos ?? []).map((p) => p.id)
+  const { data: pagosVentas } = pagosIds.length > 0
+    ? await supabase.from('pagos_ventas').select('pago_id, monto_asignado').in('pago_id', pagosIds)
+    : { data: [] as { pago_id: string; monto_asignado: number }[] }
+
+  // Igual que en el modal: el Haber de cada pago es lo efectivamente
+  // aplicado a ventas, no el monto bruto recibido — para que el saldo
+  // siempre cierre contra ventas.monto_debe.
+  const asignadoPorPago = new Map<string, number>()
+  for (const pv of pagosVentas ?? []) {
+    asignadoPorPago.set(pv.pago_id, (asignadoPorPago.get(pv.pago_id) ?? 0) + pv.monto_asignado)
+  }
 
   type Movimiento = { fecha: string; detalle: string; debe: number; haber: number }
   const movimientos: Movimiento[] = [
@@ -25,7 +38,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ cli
       fecha: p.fecha_pago,
       detalle: `Pago ${p.metodo}${p.referencia ? ' — ' + p.referencia : ''}`,
       debe: 0,
-      haber: p.monto,
+      haber: asignadoPorPago.get(p.id) ?? 0,
     })),
   ].sort((a, b) => a.fecha.localeCompare(b.fecha))
 

@@ -16,6 +16,7 @@ import {
   Package,
   Store,
   Archive,
+  Users,
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -23,6 +24,7 @@ const NAV_ITEMS = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/produccion', label: 'Producción', icon: Egg },
   { href: '/ventas', label: 'Ventas', icon: ShoppingCart },
+  { href: '/clientes', label: 'Clientes', icon: Users },
   { href: '/caja', label: 'Caja', icon: Wallet },
   { href: '/galpones', label: 'Galpones', icon: Building2 },
   { href: '/proveedores', label: 'Proveedores', icon: Truck },
