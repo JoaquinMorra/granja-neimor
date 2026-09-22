@@ -322,6 +322,7 @@ export default function GalponesClient({ galpones, lotes, consumoColoradasGDia, 
   const [loteVentasAbierto, setLoteVentasAbierto] = useState<string | null>(null)
   const [anulandoVenta, setAnulandoVenta] = useState<VentaGallinas | null>(null)
   const [loadingAnular, setLoadingAnular] = useState(false)
+  const [mostrarRetirados, setMostrarRetirados] = useState(false)
 
   function openNuevoLote(galponId: string) {
     setEditingLote(undefined)
@@ -376,6 +377,14 @@ export default function GalponesClient({ galpones, lotes, consumoColoradasGDia, 
           <h1 className="text-2xl font-bold text-slate-900">Galpones y lotes</h1>
           <p className="text-sm text-slate-500 mt-0.5">Gestión de galpones, lotes y seguimiento de plantel</p>
         </div>
+        {lotes.some((l) => !l.activo) && (
+          <label className="flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer">
+            <input type="checkbox" checked={mostrarRetirados}
+              onChange={(e) => setMostrarRetirados(e.target.checked)}
+              className="accent-blue-600" />
+            Mostrar retirados ({lotes.filter((l) => !l.activo).length})
+          </label>
+        )}
       </div>
 
       {/* Resumen de consumo */}
@@ -422,6 +431,7 @@ export default function GalponesClient({ galpones, lotes, consumoColoradasGDia, 
         {galpones.map((galpon) => {
           const lotesGalpon = lotes.filter((l) => l.galpon_id === galpon.id)
           const lotesActivosGalpon = lotesGalpon.filter((l) => l.activo)
+          const lotesVisibles = mostrarRetirados ? lotesGalpon : lotesActivosGalpon
           const totalGallinas = lotesActivosGalpon.reduce((s, l) => s + l.gallinas_actuales, 0)
           const totalMuertes = lotesActivosGalpon.reduce((s, l) => s + l.total_muertes, 0)
           const totalVendidas = lotesActivosGalpon.reduce((s, l) => s + l.total_vendidas, 0)
@@ -472,14 +482,16 @@ export default function GalponesClient({ galpones, lotes, consumoColoradasGDia, 
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
-                    {lotesGalpon.length === 0 ? (
+                    {lotesVisibles.length === 0 ? (
                       <tr>
                         <td colSpan={9} className="table-td text-center text-slate-400 py-6">
-                          Sin lotes registrados
+                          {lotesGalpon.length === 0
+                            ? 'Sin lotes registrados'
+                            : `Sin lotes activos (${lotesGalpon.length - lotesActivosGalpon.length} retirado${lotesGalpon.length - lotesActivosGalpon.length !== 1 ? 's' : ''} oculto${lotesGalpon.length - lotesActivosGalpon.length !== 1 ? 's' : ''})`}
                         </td>
                       </tr>
                     ) : (
-                      lotesGalpon.map((lote) => {
+                      lotesVisibles.map((lote) => {
                         const postura = getPosturaEsperada(lote.edad_semanas)
                         const ventasLote = ventasGallinas.filter((v) => v.lote_id === lote.id)
                         const historialAbierto = loteVentasAbierto === lote.id
