@@ -90,6 +90,7 @@ export const CATEGORIAS_INGRESO = [
   'Ventas Puesto',
   'USD',
   'Venta gallinas',
+  'Aporte de Socios',
   'Otros',
 ]
 
