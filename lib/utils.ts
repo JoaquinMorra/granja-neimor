@@ -144,73 +144,96 @@ function toISO(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
+// ============================================================
+// Excepciones puntuales de período
+// ============================================================
+// Para meses donde el cierre contable real no cayó el día 5 habitual.
+// Cada entrada es un período completo que reemplaza al que tocaría según
+// la regla normal. Afecta a todos los módulos que usan las funciones de
+// abajo (Ventas, Mercado, Costos, Caja, Dashboard). Los períodos
+// anteriores a los listados acá NO se tocan, siguen con la regla normal.
+// Sacar/agregar entradas a mano cuando haga falta otra excepción.
+const EXCEPCIONES_PERIODO: { inicio: string; fin: string }[] = [
+  { inicio: '2026-09-06', fin: '2026-10-02' }, // septiembre 2026: cerró el 2/10 en vez del 5/10
+  { inicio: '2026-10-03', fin: '2026-11-01' }, // octubre 2026: arranca el 3/10 para no dejar esos días sin período
+]
+
+// Dada una fecha y el período "normal" (regla 6 al 5) que le tocaría,
+// devuelve el período real: el de la excepción que la contenga, si hay
+// alguna, o si no el normal tal cual.
+function resolverPeriodoQueContiene(
+  fechaISO: string,
+  inicioNormalISO: string,
+  finNormalISO: string
+): { inicio: string; fin: string } {
+  const excepcion = EXCEPCIONES_PERIODO.find((e) => fechaISO >= e.inicio && fechaISO <= e.fin)
+  return excepcion ?? { inicio: inicioNormalISO, fin: finNormalISO }
+}
+
+function labelPeriodo(inicioISO: string, finISO: string): string {
+  const fmt: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' }
+  const inicioDate = new Date(inicioISO + 'T12:00:00')
+  const finDate = new Date(finISO + 'T12:00:00')
+  return `${inicioDate.toLocaleDateString('es-AR', fmt)} – ${finDate.toLocaleDateString('es-AR', fmt)}`
+}
+
+function periodoNormalQueContiene(fecha: Date): { inicio: Date; fin: Date } {
+  const dia = fecha.getDate()
+  const inicio = dia <= 5
+    ? new Date(fecha.getFullYear(), fecha.getMonth() - 1, 6)
+    : new Date(fecha.getFullYear(), fecha.getMonth(), 6)
+  const fin = new Date(inicio.getFullYear(), inicio.getMonth() + 1, 5)
+  return { inicio, fin }
+}
+
 export function getPeriodoActual(): { inicio: string; fin: string; label: string } {
   const hoy = new Date()
-  const dia = hoy.getDate()
-
-  const inicioDate = dia <= 5
-    ? new Date(hoy.getFullYear(), hoy.getMonth() - 1, 6)
-    : new Date(hoy.getFullYear(), hoy.getMonth(), 6)
-  const finDate = new Date(inicioDate.getFullYear(), inicioDate.getMonth() + 1, 5)
-
-  const fmt: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' }
-  const label = `${inicioDate.toLocaleDateString('es-AR', fmt)} – ${finDate.toLocaleDateString('es-AR', fmt)}`
-
-  return { inicio: toISO(inicioDate), fin: toISO(finDate), label }
+  const { inicio: inicioNormal, fin: finNormal } = periodoNormalQueContiene(hoy)
+  const { inicio, fin } = resolverPeriodoQueContiene(toISO(hoy), toISO(inicioNormal), toISO(finNormal))
+  return { inicio, fin, label: labelPeriodo(inicio, fin) }
 }
 
 export function getPeriodoInfo(): {
   inicio: string; fin: string; label: string; diaActual: number; diasTotales: number
 } {
   const hoy = new Date()
-  const dia = hoy.getDate()
-
-  const inicioDate = dia <= 5
-    ? new Date(hoy.getFullYear(), hoy.getMonth() - 1, 6)
-    : new Date(hoy.getFullYear(), hoy.getMonth(), 6)
-  const finDate = new Date(inicioDate.getFullYear(), inicioDate.getMonth() + 1, 5)
+  const { inicio, fin } = getPeriodoActual()
 
   const ms = 1000 * 60 * 60 * 24
   const hoyMid = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()).getTime()
-  const inicioMid = new Date(inicioDate.getFullYear(), inicioDate.getMonth(), inicioDate.getDate()).getTime()
-  const finMid = new Date(finDate.getFullYear(), finDate.getMonth(), finDate.getDate()).getTime()
+  const inicioMid = new Date(inicio + 'T00:00:00').getTime()
+  const finMid = new Date(fin + 'T00:00:00').getTime()
 
   const diaActual = Math.round((hoyMid - inicioMid) / ms) + 1
   const diasTotales = Math.round((finMid - inicioMid) / ms) + 1
 
-  const fmt: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' }
-  const label = `${inicioDate.toLocaleDateString('es-AR', fmt)} – ${finDate.toLocaleDateString('es-AR', fmt)}`
-
-  return { inicio: toISO(inicioDate), fin: toISO(finDate), label, diaActual, diasTotales }
+  return { inicio, fin, label: labelPeriodo(inicio, fin), diaActual, diasTotales }
 }
 
 export function getPeriodoAnterior(): { inicio: string; fin: string; label: string } {
-  const hoy = new Date()
-  const dia = hoy.getDate()
-  const periodoActualInicio = dia <= 5
-    ? new Date(hoy.getFullYear(), hoy.getMonth() - 1, 6)
-    : new Date(hoy.getFullYear(), hoy.getMonth(), 6)
+  const actual = getPeriodoActual()
+  const diaAntes = new Date(actual.inicio + 'T12:00:00')
+  diaAntes.setDate(diaAntes.getDate() - 1)
 
-  const inicioDate = new Date(periodoActualInicio.getFullYear(), periodoActualInicio.getMonth() - 1, 6)
-  const finDate = new Date(inicioDate.getFullYear(), inicioDate.getMonth() + 1, 5)
-
-  const fmt: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' }
-  const label = `${inicioDate.toLocaleDateString('es-AR', fmt)} – ${finDate.toLocaleDateString('es-AR', fmt)}`
-
-  return { inicio: toISO(inicioDate), fin: toISO(finDate), label }
+  const { inicio: inicioNormal, fin: finNormal } = periodoNormalQueContiene(diaAntes)
+  const { inicio, fin } = resolverPeriodoQueContiene(toISO(diaAntes), toISO(inicioNormal), toISO(finNormal))
+  return { inicio, fin, label: labelPeriodo(inicio, fin) }
 }
 
 export function getUltimosPeriodos(n: number): { inicio: string; fin: string; label: string }[] {
-  const hoy = new Date()
-  const dia = hoy.getDate()
-  const periodoActualInicio = dia <= 5
-    ? new Date(hoy.getFullYear(), hoy.getMonth() - 1, 6)
-    : new Date(hoy.getFullYear(), hoy.getMonth(), 6)
+  const periodos: { inicio: string; fin: string; label: string }[] = []
+  let actual: { inicio: string; fin: string } = getPeriodoActual()
 
-  return Array.from({ length: n }, (_, i) => {
-    const inicio = new Date(periodoActualInicio.getFullYear(), periodoActualInicio.getMonth() - (n - 1 - i), 6)
-    const fin = new Date(inicio.getFullYear(), inicio.getMonth() + 1, 5)
-    const label = inicio.toLocaleDateString('es-AR', { month: 'short' })
-    return { inicio: toISO(inicio), fin: toISO(fin), label }
-  })
+  for (let i = 0; i < n; i++) {
+    const inicioDate = new Date(actual.inicio + 'T12:00:00')
+    const label = inicioDate.toLocaleDateString('es-AR', { month: 'short' })
+    periodos.unshift({ inicio: actual.inicio, fin: actual.fin, label })
+
+    const diaAntes = new Date(actual.inicio + 'T12:00:00')
+    diaAntes.setDate(diaAntes.getDate() - 1)
+    const { inicio: inicioNormal, fin: finNormal } = periodoNormalQueContiene(diaAntes)
+    actual = resolverPeriodoQueContiene(toISO(diaAntes), toISO(inicioNormal), toISO(finNormal))
+  }
+
+  return periodos
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Caja } from '@/types'
@@ -286,10 +286,34 @@ export default function CajaClient({
   const [mostrarPersonalizado, setMostrarPersonalizado] = useState(esPersonalizado)
   const [inicioForm, setInicioForm] = useState(periodoInicio)
   const [finForm, setFinForm] = useState(periodoFin)
+  // El rango personalizado se guarda en este navegador para que aparezca
+  // como una opción más en el desplegable (no se pierde al navegar a otra
+  // página, ni hay que volver a tipear las fechas cada vez).
+  const [periodoGuardado, setPeriodoGuardado] = useState<{ inicio: string; fin: string } | null>(null)
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('caja-periodo-personalizado')
+      if (raw) setPeriodoGuardado(JSON.parse(raw))
+    } catch {
+      // localStorage no disponible (modo privado, etc.) — sin problema, no se guarda
+    }
+  }, [])
 
   function aplicarPersonalizado(e: React.FormEvent) {
     e.preventDefault()
+    try {
+      localStorage.setItem('caja-periodo-personalizado', JSON.stringify({ inicio: inicioForm, fin: finForm }))
+    } catch {
+      // sin problema si no se puede guardar, igual se navega a la vista
+    }
+    setPeriodoGuardado({ inicio: inicioForm, fin: finForm })
     router.push(`/caja?inicio=${inicioForm}&fin=${finForm}`)
+  }
+
+  function olvidarPersonalizado() {
+    try { localStorage.removeItem('caja-periodo-personalizado') } catch { /* nada que hacer */ }
+    setPeriodoGuardado(null)
   }
 
   async function handleEliminar(id: string) {
@@ -344,17 +368,29 @@ export default function CajaClient({
           <p className="text-sm text-slate-500 mt-0.5">Período {periodoLabel}</p>
         </div>
         <div className="flex items-center gap-2">
-          {!mostrarPersonalizado && (
-            <select
-              value={periodoInicio}
-              onChange={(e) => router.push(`/caja?periodo=${e.target.value}`)}
-              className="input w-auto text-sm"
-            >
-              {[...periodos].reverse().map((p) => (
-                <option key={p.inicio} value={p.inicio}>{p.label}</option>
-              ))}
-            </select>
-          )}
+          <select
+            value={
+              periodoGuardado && esPersonalizado && periodoInicio === periodoGuardado.inicio && periodoFin === periodoGuardado.fin
+                ? 'guardado'
+                : periodoInicio
+            }
+            onChange={(e) => {
+              setMostrarPersonalizado(false)
+              if (e.target.value === 'guardado' && periodoGuardado) {
+                router.push(`/caja?inicio=${periodoGuardado.inicio}&fin=${periodoGuardado.fin}`)
+              } else {
+                router.push(`/caja?periodo=${e.target.value}`)
+              }
+            }}
+            className="input w-auto text-sm"
+          >
+            {periodoGuardado && (
+              <option value="guardado">📌 {formatearFecha(periodoGuardado.inicio)} – {formatearFecha(periodoGuardado.fin)}</option>
+            )}
+            {[...periodos].reverse().map((p) => (
+              <option key={p.inicio} value={p.inicio}>{p.label}</option>
+            ))}
+          </select>
           <button
             onClick={() => setMostrarPersonalizado((v) => !v)}
             className={`text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${
@@ -363,6 +399,11 @@ export default function CajaClient({
           >
             Personalizado
           </button>
+          {periodoGuardado && (
+            <button onClick={olvidarPersonalizado} className="text-xs text-slate-400 hover:text-red-600 transition-colors">
+              Olvidar guardado
+            </button>
+          )}
           <button onClick={() => setModalOpen(true)} className="btn-primary flex items-center gap-2">
             <Plus size={18} />
             <span className="hidden sm:inline">Nuevo movimiento</span>
