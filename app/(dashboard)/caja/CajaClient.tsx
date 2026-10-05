@@ -25,8 +25,10 @@ type Props = {
   resumenMensual: { fecha: string; tipo: string; monto: number }[]
   periodoLabel: string
   periodoInicio: string
+  periodoFin: string
   periodos: Periodo[]
   cantFuturas: number
+  esPersonalizado: boolean
 }
 
 function NuevoMovimientoModal({ onClose }: { onClose: () => void }) {
@@ -274,13 +276,21 @@ function EditarMovimientoModal({ movimiento, onClose }: { movimiento: Caja; onCl
 }
 
 export default function CajaClient({
-  movimientos, resumenMensual, periodoLabel, periodoInicio, periodos, cantFuturas,
+  movimientos, resumenMensual, periodoLabel, periodoInicio, periodoFin, periodos, cantFuturas, esPersonalizado,
 }: Props) {
   const router = useRouter()
   const [modalOpen, setModalOpen] = useState(false)
   const [movimientoEditando, setMovimientoEditando] = useState<Caja | null>(null)
   const [filtroTipo, setFiltroTipo] = useState('todos')
   const [filtroOrigen, setFiltroOrigen] = useState('todos')
+  const [mostrarPersonalizado, setMostrarPersonalizado] = useState(esPersonalizado)
+  const [inicioForm, setInicioForm] = useState(periodoInicio)
+  const [finForm, setFinForm] = useState(periodoFin)
+
+  function aplicarPersonalizado(e: React.FormEvent) {
+    e.preventDefault()
+    router.push(`/caja?inicio=${inicioForm}&fin=${finForm}`)
+  }
 
   async function handleEliminar(id: string) {
     if (!confirm('¿Eliminár este movimiento?')) return
@@ -334,15 +344,25 @@ export default function CajaClient({
           <p className="text-sm text-slate-500 mt-0.5">Período {periodoLabel}</p>
         </div>
         <div className="flex items-center gap-2">
-          <select
-            value={periodoInicio}
-            onChange={(e) => router.push(`/caja?periodo=${e.target.value}`)}
-            className="input w-auto text-sm"
+          {!mostrarPersonalizado && (
+            <select
+              value={periodoInicio}
+              onChange={(e) => router.push(`/caja?periodo=${e.target.value}`)}
+              className="input w-auto text-sm"
+            >
+              {[...periodos].reverse().map((p) => (
+                <option key={p.inicio} value={p.inicio}>{p.label}</option>
+              ))}
+            </select>
+          )}
+          <button
+            onClick={() => setMostrarPersonalizado((v) => !v)}
+            className={`text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${
+              mostrarPersonalizado ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
           >
-            {[...periodos].reverse().map((p) => (
-              <option key={p.inicio} value={p.inicio}>{p.label}</option>
-            ))}
-          </select>
+            Personalizado
+          </button>
           <button onClick={() => setModalOpen(true)} className="btn-primary flex items-center gap-2">
             <Plus size={18} />
             <span className="hidden sm:inline">Nuevo movimiento</span>
@@ -350,6 +370,21 @@ export default function CajaClient({
           </button>
         </div>
       </div>
+
+      {/* Rango personalizado: para meses donde el cierre no cayó justo el día 5 */}
+      {mostrarPersonalizado && (
+        <form onSubmit={aplicarPersonalizado} className="card p-4 flex flex-wrap items-end gap-3">
+          <div>
+            <label className="label">Desde</label>
+            <input type="date" value={inicioForm} onChange={(e) => setInicioForm(e.target.value)} className="input" required />
+          </div>
+          <div>
+            <label className="label">Hasta</label>
+            <input type="date" value={finForm} onChange={(e) => setFinForm(e.target.value)} className="input" required />
+          </div>
+          <button type="submit" className="btn-primary">Aplicar</button>
+        </form>
+      )}
 
       {/* Alerta movimientos futuros */}
       {cantFuturas > 0 && (

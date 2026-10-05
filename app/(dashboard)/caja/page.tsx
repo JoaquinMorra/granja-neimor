@@ -5,10 +5,10 @@ import { getPeriodoActual, getUltimosPeriodos, hoyISO } from '@/lib/utils'
 export default async function CajaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ periodo?: string }>
+  searchParams: Promise<{ periodo?: string; inicio?: string; fin?: string }>
 }) {
   const supabase = await createClient()
-  const { periodo: periodoParam } = await searchParams
+  const { periodo: periodoParam, inicio: inicioParam, fin: finParam } = await searchParams
   const periodos = getUltimosPeriodos(6)
   const periodoActual = getPeriodoActual()
 
@@ -16,8 +16,11 @@ export default async function CajaPage({
     ? periodos.find((p) => p.inicio === periodoParam)
     : undefined
 
-  const mesInicio = periodoEncontrado?.inicio ?? periodoActual.inicio
-  const mesFin = periodoEncontrado?.fin ?? periodoActual.fin
+  // Rango personalizado (ej. un mes que se cerró antes/después del día 5
+  // habitual): tiene prioridad sobre el período fijo si viene en la URL.
+  const esPersonalizado = !!(inicioParam && finParam)
+  const mesInicio = esPersonalizado ? inicioParam! : periodoEncontrado?.inicio ?? periodoActual.inicio
+  const mesFin = esPersonalizado ? finParam! : periodoEncontrado?.fin ?? periodoActual.fin
 
   const fmt: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' }
   const periodoLabel = `${new Date(mesInicio + 'T12:00:00').toLocaleDateString('es-AR', fmt)} – ${new Date(mesFin + 'T12:00:00').toLocaleDateString('es-AR', fmt)}`
@@ -50,8 +53,10 @@ export default async function CajaPage({
       resumenMensual={resumenMensual ?? []}
       periodoLabel={periodoLabel}
       periodoInicio={mesInicio}
+      periodoFin={mesFin}
       periodos={periodos}
       cantFuturas={futuras?.length ?? 0}
+      esPersonalizado={esPersonalizado}
     />
   )
 }
