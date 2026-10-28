@@ -68,4 +68,14 @@
   .modal-content {
     @apply bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto;
   }
+
+  /* Oculta la scrollbar en listas horizontales (chips de filtro) sin perder
+     el scroll — scrollbar-width es Firefox, el resto necesita el pseudo-elemento. */
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
 }
