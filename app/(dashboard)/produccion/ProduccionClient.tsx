@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { createClient } from '@/lib/supabase/client'
 import CargaProduccionModal from '@/components/produccion/CargaProduccionModal'
+import ProduccionMobileView from './ProduccionMobileView'
 import type { Galpon, LoteConCalculos, ProduccionDiaria } from '@/types'
 import { formatearFecha, getPosturaEsperada, hoyISO } from '@/lib/utils'
 import {
@@ -292,13 +293,33 @@ export default function ProduccionClient({ galpones, lotes, produccionReciente }
             <span className="hidden sm:inline">Reporte por período</span>
             <span className="sm:hidden">Reporte</span>
           </Link>
-          <button onClick={() => setModalOpen(true)} className="btn-primary flex items-center gap-2">
+          {/* En mobile la carga es el formulario de ProduccionMobileView, no este botón+modal. */}
+          <button onClick={() => setModalOpen(true)} className="hidden lg:flex btn-primary items-center gap-2">
             <Plus size={18} />
-            <span className="hidden sm:inline">Cargar producción</span>
-            <span className="sm:hidden">Cargar</span>
+            Cargar producción
           </button>
         </div>
       </div>
+
+      {/* ── Vista mobile/tablet (<1024px): formulario de carga + historial en cards ── */}
+      <ProduccionMobileView
+        galpones={galpones}
+        lotes={lotes}
+        produccionReciente={produccionReciente}
+        hoy={hoy}
+        totalesPorFecha={totalesPorFecha}
+        rendimientoPorGalpon={rendimientoPorGalpon}
+        produccionFiltrada={produccionFiltrada}
+        filtroGalpon={filtroGalpon}
+        setFiltroGalpon={setFiltroGalpon}
+        filtroSoloFuturas={filtroSoloFuturas}
+        setFiltroSoloFuturas={setFiltroSoloFuturas}
+        onEditar={setEditando}
+        onEliminar={setEliminando}
+      />
+
+      {/* ── Vista desktop (≥1024px): igual que antes ── */}
+      <div className="hidden lg:block space-y-6">
 
       {/* Alerta: fechas futuras */}
       {cantFuturas > 0 && (
@@ -648,6 +669,8 @@ export default function ProduccionClient({ galpones, lotes, produccionReciente }
             </tbody>
           </table>
         </div>
+      </div>
+
       </div>
 
       {/* Modales */}
