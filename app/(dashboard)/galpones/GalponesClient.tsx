@@ -6,6 +6,9 @@ import { createClient } from '@/lib/supabase/client'
 import type { Galpon, LoteConCalculos, VentaGallinas } from '@/types'
 import { getPosturaEsperada, calcularEdadSemanas, formatearPeso, formatearFecha, hoyISO } from '@/lib/utils'
 import { Plus, X, Edit, Building2, Banknote, ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
+import GalponesMobileView from './GalponesMobileView'
+
+type ProduccionLite = { fecha: string; huevos: number; muertes: number; lote_id: string }
 
 type Props = {
   galpones: Galpon[]
@@ -13,6 +16,7 @@ type Props = {
   consumoColoradasGDia: number
   consumoBlancasGDia: number
   ventasGallinas: VentaGallinas[]
+  produccionReciente: ProduccionLite[]
 }
 
 type LoteFormData = {
@@ -313,7 +317,7 @@ function ConfirmarAnularVentaModal({
   )
 }
 
-export default function GalponesClient({ galpones, lotes, consumoColoradasGDia, consumoBlancasGDia, ventasGallinas }: Props) {
+export default function GalponesClient({ galpones, lotes, consumoColoradasGDia, consumoBlancasGDia, ventasGallinas, produccionReciente }: Props) {
   const router = useRouter()
   const [modalOpen, setModalOpen] = useState(false)
   const [editingLote, setEditingLote] = useState<LoteConCalculos | undefined>()
@@ -386,6 +390,20 @@ export default function GalponesClient({ galpones, lotes, consumoColoradasGDia, 
           </label>
         )}
       </div>
+
+      {/* ── Vista mobile/tablet (<1024px) ── */}
+      <GalponesMobileView
+        galpones={galpones}
+        lotes={lotes}
+        ventasGallinas={ventasGallinas}
+        produccionReciente={produccionReciente}
+        mostrarRetirados={mostrarRetirados}
+        onNuevoLote={openNuevoLote}
+        onVentaGallinas={setLoteParaVenta}
+      />
+
+      {/* ── Vista desktop (≥1024px): igual que antes ── */}
+      <div className="hidden lg:block space-y-6">
 
       {/* Resumen de consumo */}
       <div className="card p-5 space-y-4">
@@ -652,6 +670,8 @@ export default function GalponesClient({ galpones, lotes, consumoColoradasGDia, 
             </div>
           )
         })}
+      </div>
+
       </div>
 
       {modalOpen && (

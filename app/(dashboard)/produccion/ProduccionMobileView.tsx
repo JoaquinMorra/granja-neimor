@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Galpon, LoteConCalculos, ProduccionDiaria } from '@/types'
 import { formatearFecha, getPosturaEsperada, hoyISO } from '@/lib/utils'
@@ -64,6 +64,7 @@ export default function ProduccionMobileView({
   onEditar, onEliminar,
 }: Props) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const toast = useToast()
 
   // ── Formulario de carga ──────────────────────────────────────────────────
@@ -72,6 +73,7 @@ export default function ProduccionMobileView({
   const [guardando, setGuardando] = useState(false)
   const [confirmarSobreescribir, setConfirmarSobreescribir] = useState(false)
   const inputsRef = useRef<Record<string, HTMLInputElement | null>>({})
+  const galponCardRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   const galponesConLotes = useMemo(
     () => galpones.map((g) => ({ galpon: g, lotesActivos: lotes.filter((l) => l.galpon_id === g.id && l.activo) }))
@@ -99,6 +101,20 @@ export default function ProduccionMobileView({
     setValores(iniciales)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fecha])
+
+  // Deep-link desde la card de un galpón en /galpones ("Producción" →
+  // /produccion?galpon=<id>): lleva directo a esa card y enfoca el primer input.
+  useEffect(() => {
+    const galponId = searchParams.get('galpon')
+    if (!galponId) return
+    const t = setTimeout(() => {
+      galponCardRefs.current[galponId]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      const primerLote = galponesConLotes.find((g) => g.galpon.id === galponId)?.lotesActivos[0]
+      if (primerLote) inputsRef.current[`${primerLote.id}:huevos`]?.focus()
+    }, 150)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
 
   // Orden de los campos para que "Siguiente" en el teclado salte en orden.
   const ordenCampos = useMemo(() => {
@@ -208,7 +224,8 @@ export default function ProduccionMobileView({
           const cargado = lotesActivos.every((l) => datosExistentes.has(l.id))
           const color = COLORES_GALPON[gIdx % COLORES_GALPON.length]
           return (
-            <MobileCard key={galpon.id} className={`border-l-4 ${color.borde} overflow-hidden`}>
+            <div key={galpon.id} ref={(el) => { galponCardRefs.current[galpon.id] = el }}>
+            <MobileCard className={`border-l-4 ${color.borde} overflow-hidden`}>
               {/* Franja de color: identifica el galpón de un vistazo, sin depender del tipo colorada/blanca */}
               <div className={`-mx-4 -mt-4 mb-3 px-4 py-2.5 flex items-center gap-2 ${color.franja}`}>
                 <span className={`font-bold ${color.texto}`}>{galpon.nombre}</span>
@@ -257,6 +274,7 @@ export default function ProduccionMobileView({
                 })}
               </div>
             </MobileCard>
+            </div>
           )
         })}
 
