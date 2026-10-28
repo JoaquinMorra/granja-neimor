@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import NuevaVentaModal from '@/components/ventas/NuevaVentaModal'
 import RegistrarPagoModal from '@/components/ventas/RegistrarPagoModal'
 import CuentaCorrienteModal from '@/components/ventas/CuentaCorrienteModal'
+import VentasMobileView from './VentasMobileView'
 import type { Venta, Producto, PrecioEspecialCliente, ClienteConfig, SaldoCliente } from '@/types'
 import { formatearFecha, formatearPeso, PUNTO_EQUILIBRIO_CAJONES } from '@/lib/utils'
 import { Plus, CheckCircle, Edit, Trash2, Banknote } from 'lucide-react'
@@ -102,8 +103,8 @@ export default function VentasClient({
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold text-slate-900">Ventas</h1>
+        <h1 className="text-2xl font-bold text-slate-900">Ventas</h1>
+        <div className="hidden lg:flex items-center gap-3">
           <select
             value={periodoInicio}
             onChange={(e) => router.push(`/ventas?periodo=${e.target.value}`)}
@@ -113,13 +114,38 @@ export default function VentasClient({
               <option key={p.inicio} value={p.inicio}>{p.label}</option>
             ))}
           </select>
+          <button onClick={() => { setVentaEditar(undefined); setModalOpen(true) }} className="btn-primary flex items-center gap-2">
+            <Plus size={18} />
+            Nueva venta
+          </button>
         </div>
-        <button onClick={() => { setVentaEditar(undefined); setModalOpen(true) }} className="btn-primary flex items-center gap-2">
-          <Plus size={18} />
-          <span className="hidden sm:inline">Nueva venta</span>
-          <span className="sm:hidden">Nueva</span>
-        </button>
       </div>
+
+      {/* ── Vista mobile/tablet (<1024px) ── */}
+      <VentasMobileView
+        ventasFiltradas={ventasFiltradas}
+        deudasPorCliente={deudasPorCliente}
+        cajonesVendidosPeriodo={cajonesVendidosPeriodo}
+        ingresadoPeriodo={ingresadoPeriodo}
+        deudaTotalPeriodo={deudaTotalPeriodo}
+        periodoLabel={periodoLabel}
+        periodoInicio={periodoInicio}
+        periodos={periodos}
+        filtroEstado={filtroEstado}
+        setFiltroEstado={setFiltroEstado}
+        filtroCliente={filtroCliente}
+        setFiltroCliente={setFiltroCliente}
+        vista={vista}
+        setVista={setVista}
+        onNuevaVenta={() => { setVentaEditar(undefined); setModalOpen(true) }}
+        onEditar={handleEditar}
+        onEliminar={handleEliminar}
+        onRegistrarPago={(cliente, ventaInicial) => setPagoParaCliente({ cliente, ventaInicial })}
+        onVerCuentaCorriente={setCuentaCorriente}
+      />
+
+      {/* ── Vista desktop (≥1024px): igual que antes ── */}
+      <div className="hidden lg:block space-y-6">
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -323,6 +349,8 @@ export default function VentasClient({
           </div>
         </div>
       )}
+
+      </div>
 
       {/* Modal nueva venta */}
       {modalOpen && (
