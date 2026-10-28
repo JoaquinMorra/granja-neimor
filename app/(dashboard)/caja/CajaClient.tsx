@@ -17,6 +17,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import { Plus, X, TrendingUp, TrendingDown, Wallet, ArrowLeftRight, Pencil, Trash2, AlertTriangle } from 'lucide-react'
+import CajaMobileView from './CajaMobileView'
 
 type Periodo = { inicio: string; fin: string; label: string }
 
@@ -365,9 +366,9 @@ export default function CajaClient({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Caja</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Período {periodoLabel}</p>
+          <p className="hidden lg:block text-sm text-slate-500 mt-0.5">Período {periodoLabel}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="hidden lg:flex items-center gap-2">
           <select
             value={
               periodoGuardado && esPersonalizado && periodoInicio === periodoGuardado.inicio && periodoFin === periodoGuardado.fin
@@ -406,11 +407,28 @@ export default function CajaClient({
           )}
           <button onClick={() => setModalOpen(true)} className="btn-primary flex items-center gap-2">
             <Plus size={18} />
-            <span className="hidden sm:inline">Nuevo movimiento</span>
-            <span className="sm:hidden">Nuevo</span>
+            Nuevo movimiento
           </button>
         </div>
       </div>
+
+      {/* ── Vista mobile/tablet (<1024px) ── */}
+      <CajaMobileView
+        movimientos={movimientos}
+        periodoLabel={periodoLabel}
+        periodoInicio={periodoInicio}
+        periodoFin={periodoFin}
+        periodos={periodos}
+        totalIngresos={totalIngresos}
+        totalEgresos={totalEgresos}
+        saldoMes={saldoMes}
+        saldoEfectivo={saldoEfectivo}
+        saldoTransf={saldoTransf}
+        cantFuturas={cantFuturas}
+      />
+
+      {/* ── Vista desktop (≥1024px): igual que antes ── */}
+      <div className="hidden lg:block space-y-6">
 
       {/* Rango personalizado: para meses donde el cierre no cayó justo el día 5 */}
       {mostrarPersonalizado && (
@@ -668,6 +686,8 @@ export default function CajaClient({
             </tbody>
           </table>
         </div>
+      </div>
+
       </div>
 
       {modalOpen && <NuevoMovimientoModal onClose={() => setModalOpen(false)} />}
